@@ -535,6 +535,46 @@ public class CameraConnectionModel
     }
     
     /**
+     * Starts live view
+     * @throws CameraException 
+     */
+    public void startLiveView() throws CameraException
+    {
+        if (connected())
+        {
+            Response r = this.cam.startLiveView();
+            if (r.getResult() == Result.ERROR)
+            {
+                throw new CameraException("Live view start FAILED: " + r.getErrors().get(0).getMessage());
+            }
+        }
+        else
+        {
+            throw new CameraException("Not connected");
+        }
+    }
+    
+    /**
+     * Stops live view
+     * @throws CameraException 
+     */
+    public void stopLiveView() throws CameraException
+    {
+        if (connected())
+        {
+            Response r = this.cam.stopLiveView();
+            if (r.getResult() == Result.ERROR)
+            {
+                throw new CameraException("Live view stop FAILED: " + r.getErrors().get(0).getMessage());
+            }
+        }
+        else
+        {
+            throw new CameraException("Not connected");
+        }
+    }
+    
+    /**
      * Attempts to establish a connection to the camera
      * @throws pentaxwifi.CameraException
      */

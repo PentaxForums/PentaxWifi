@@ -17,6 +17,7 @@ import java.awt.Component;
 import java.awt.Desktop;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.ItemEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -78,15 +79,17 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private ScheduledExecutorService pool;
     private List<CameraImage> downloadTasks;
     private File lastThumb;
+    private LiveViewGui lv;
+    private Boolean initializing;
     
     // Application icon
-    private static final String ICON = "resources/appicon.png";
+    public static final String ICON = "resources/appicon.png";
     
     // Progress spinner
-    private static final String LOADING_ICON = "resources/ajax-loader.gif";
+    public static final String LOADING_ICON = "resources/ajax-loader.gif";
     
     // Default path for saving photos
-    private static final String DEFAULT_PATH = System.getProperty("user.dir");
+    public static final String DEFAULT_PATH = System.getProperty("user.dir");
     
     // Default empty dropdown entry
     public static final ComboItem DEFAULT_COMBO_ITEM = new ComboItem("---", null);
@@ -292,6 +295,15 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         this.transferFiles.setSelected(doTransferFiles);
         this.transferThumbnails.setSelected(doTransferThumbnails);
         this.autoReconnect.setSelected(doAutoReconnect);
+    }
+    
+    @Override
+    public void liveViewImageUpdated(BufferedImage img)
+    {
+        if (this.lv != null)
+        {
+            this.lv.updateImage(img);
+        }
     }
     
     /**
@@ -595,6 +607,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
      */
     private void initLabels()
     {
+        initializing = true;
         this.cameraNameLabel.setText(this.m.getCameraModel());
         this.cameraFirmwareLabel.setText("v"+ this.m.getCameraFirmware().replace("01.", "1."));
         this.cameraSerialLabel.setText("#" + this.m.getCameraSerial());
@@ -659,6 +672,8 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         updateBattery();
         
         refreshTransmitting();
+        
+        initializing = false;
     }
     
     /**
@@ -753,6 +768,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         captureQueueTextLabel = new javax.swing.JLabel();
         mainMenuBar = new javax.swing.JMenuBar();
         fileMenu = new javax.swing.JMenu();
+        startLiveViewMenu = new javax.swing.JMenuItem();
         openMenuItem = new javax.swing.JMenuItem();
         saveMenuItem = new javax.swing.JMenuItem();
         restartMenuItem = new javax.swing.JMenuItem();
@@ -1039,6 +1055,11 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         });
 
         evMenu.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Item 1", "Item 2", "Item 3", "Item 4" }));
+        evMenu.addItemListener(new java.awt.event.ItemListener() {
+            public void itemStateChanged(java.awt.event.ItemEvent evt) {
+                dropDownStateChanged(evt);
+            }
+        });
 
         javax.swing.GroupLayout evPanelLayout = new javax.swing.GroupLayout(evPanel);
         evPanel.setLayout(evPanelLayout);
@@ -1090,6 +1111,11 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         });
 
         isoMenu.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Item 1", "Item 2", "Item 3", "Item 4" }));
+        isoMenu.addItemListener(new java.awt.event.ItemListener() {
+            public void itemStateChanged(java.awt.event.ItemEvent evt) {
+                dropDownStateChanged(evt);
+            }
+        });
 
         javax.swing.GroupLayout isoPanelLayout = new javax.swing.GroupLayout(isoPanel);
         isoPanel.setLayout(isoPanelLayout);
@@ -1141,6 +1167,11 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         });
 
         tvMenu.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Item 1", "Item 2", "Item 3", "Item 4" }));
+        tvMenu.addItemListener(new java.awt.event.ItemListener() {
+            public void itemStateChanged(java.awt.event.ItemEvent evt) {
+                dropDownStateChanged(evt);
+            }
+        });
 
         javax.swing.GroupLayout tvPanelLayout = new javax.swing.GroupLayout(tvPanel);
         tvPanel.setLayout(tvPanelLayout);
@@ -1192,6 +1223,11 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         });
 
         avMenu.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Item 1", "Item 2", "Item 3", "Item 4" }));
+        avMenu.addItemListener(new java.awt.event.ItemListener() {
+            public void itemStateChanged(java.awt.event.ItemEvent evt) {
+                dropDownStateChanged(evt);
+            }
+        });
 
         javax.swing.GroupLayout avPanelLayout = new javax.swing.GroupLayout(avPanel);
         avPanel.setLayout(avPanelLayout);
@@ -1359,6 +1395,14 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         captureQueueTextLabel.setText("Capture Queue");
 
         fileMenu.setText("File");
+
+        startLiveViewMenu.setText("Start Live View");
+        startLiveViewMenu.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                startLiveViewMenuActionPerformed(evt);
+            }
+        });
+        fileMenu.add(startLiveViewMenu);
 
         openMenuItem.setText("Open Capture Queue");
         openMenuItem.addActionListener(new java.awt.event.ActionListener() {
@@ -1623,7 +1667,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     }//GEN-LAST:event_decEVActionPerformed
   
     private void incEVActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_incEVActionPerformed
-       adjust(this.evMenu, -1); 
+        adjust(this.evMenu, -1); 
     }//GEN-LAST:event_incEVActionPerformed
 
     private boolean adjust(JComboBox<String> menu, int step)
@@ -1648,40 +1692,88 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     {
         List <CaptureSetting> l = new ArrayList<>();
         
-        Object c = ((ComboItem) this.avMenu.getSelectedItem()).getValue();
-        if (c != null)
-        {
-            l.add((CaptureSetting) c);
-        }
+        Object c;
         
-        c = ((ComboItem) this.tvMenu.getSelectedItem()).getValue();
-        if (c != null)
+        try
         {
-            l.add((CaptureSetting) c);
+             c = ((ComboItem) this.avMenu.getSelectedItem()).getValue();
+            if (c != null)
+            {
+                l.add((CaptureSetting) c);
+            }       
         }
-        
-        c = ((ComboItem) this.tvMenu.getSelectedItem()).getValue();
-        if (c != null)
+        catch (Exception e)
         {
-            l.add((CaptureSetting) c);
-        }
+            
+        }    
         
-        c = ((ComboItem) this.isoMenu.getSelectedItem()).getValue();
-        if (c != null)
+        try
         {
-            l.add((CaptureSetting) c);
-        }
-        
-        c = ((ComboItem) this.evMenu.getSelectedItem()).getValue();
-        if (c != null)
-        {
-            if (!c.equals(ExposureCompensation.EC0_0))
+            c = ((ComboItem) this.tvMenu.getSelectedItem()).getValue();
+            if (c != null)
             {
                 l.add((CaptureSetting) c);
             }
         }
+        catch (Exception e)
+        {
+            
+        } 
+                
+        try
+        {
+            c = ((ComboItem) this.isoMenu.getSelectedItem()).getValue();
+            if (c != null)
+            {
+                l.add((CaptureSetting) c);
+            }
+        }
+        catch (Exception e)
+        {
+            
+        } 
+        
+        try
+        {
+            c = ((ComboItem) this.evMenu.getSelectedItem()).getValue();
+            if (c != null)
+            {
+                if (!c.equals(ExposureCompensation.EC0_0))
+                {
+                    l.add((CaptureSetting) c);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            
+        } 
         
         return l;
+    }
+    
+    /**
+     * Sends the currently selected shooting settings to the camera
+     */
+    private void sendSettingsToCamera()
+    {
+        if (!this.initializing)
+        {
+            (new Thread(){
+                @Override
+                public void run()
+                {
+                    try
+                    {
+                        m.setCaptureSettings(getSettings());
+                    }
+                    catch (CameraException ex)
+                    {
+                        System.out.println(ex.toString());
+                    }
+                }
+            }).start();    
+        }
     }
     
     private void captureButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_captureButtonActionPerformed
@@ -1706,12 +1798,11 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         
         pool = Executors.newScheduledThreadPool(1);
         
-        Runnable r = () -> {
+        Runnable r = () -> 
+        {
             try
             {
-                m.setCaptureSettings(
-                        getSettings()
-                );
+                m.setCaptureSettings(getSettings());
                 
                 m.captureStillImage(false);
             }
@@ -1808,9 +1899,18 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         
     }//GEN-LAST:event_loaderLabelPhotoMouseClicked
 
+    /**
+     * Window closed
+     */
     private void doExit()
     {
         dispose();
+        
+        if (this.lv != null)
+        {
+            this.lv.end();
+            this.lv.dispose();
+        }
         
         if (this.lastThumb != null)
         {
@@ -2000,6 +2100,32 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         }
     }//GEN-LAST:event_abortIntervalMenuItemActionPerformed
 
+    private void startLiveViewMenuActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_startLiveViewMenuActionPerformed
+        
+        if (this.lv == null)
+        {
+            this.lv = new LiveViewGui(this.m);
+        }
+        
+        this.lv.setVisible(true);
+        
+        try
+        {
+            this.m.startLiveView();
+        }
+        catch (CameraException ex)
+        {
+            Logger.getLogger(MainGui.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }//GEN-LAST:event_startLiveViewMenuActionPerformed
+
+    private void dropDownStateChanged(java.awt.event.ItemEvent evt) {//GEN-FIRST:event_dropDownStateChanged
+        if (evt.getStateChange() == ItemEvent.SELECTED)
+        {
+            sendSettingsToCamera();
+        }
+    }//GEN-LAST:event_dropDownStateChanged
+
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JRadioButton Seconds;
     private javax.swing.JMenuItem abortIntervalMenuItem;
@@ -2060,6 +2186,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private javax.swing.JMenuItem saveMenuItem;
     private javax.swing.JLabel secondsTextLabel;
     private javax.swing.JButton selectFilePath;
+    private javax.swing.JMenuItem startLiveViewMenu;
     private javax.swing.JLabel thumbnailArea;
     private javax.swing.JSlider timeSlider;
     private javax.swing.JPanel topPanel;

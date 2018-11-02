@@ -6,6 +6,7 @@
 package pentaxwifi;
 
 import com.ricoh.camera.sdk.wireless.api.CameraImage;
+import java.awt.image.BufferedImage;
 import java.io.File;
 
 /**
@@ -39,4 +40,9 @@ public interface CaptureEventListener
      * @param i 
      */
     public void imageStored(CameraImage i);
+    
+    /**
+     * Pushes the latest live view image
+     */
+    public void liveViewImageUpdated(BufferedImage img);
 }

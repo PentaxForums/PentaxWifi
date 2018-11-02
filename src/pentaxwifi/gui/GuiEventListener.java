@@ -9,7 +9,13 @@ import com.ricoh.camera.sdk.wireless.api.CameraDevice;
 import com.ricoh.camera.sdk.wireless.api.CameraEventListener;
 import com.ricoh.camera.sdk.wireless.api.CameraImage;
 import com.ricoh.camera.sdk.wireless.api.Capture;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.IOException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.imageio.ImageIO;
 import pentaxwifi.CameraConnectionModel;
 import pentaxwifi.CaptureEventListener;
 
@@ -58,6 +64,21 @@ public class GuiEventListener extends CameraEventListener
         System.out.println("Device Disconnected.");
 
         g.disconnect();
+    }
+    
+    // Display liveViewFrame in imageView
+    @Override
+    public void liveViewFrameUpdated(CameraDevice sender, byte[] liveViewFrame)
+    {
+        try
+        {
+            BufferedImage img = ImageIO.read(new ByteArrayInputStream(liveViewFrame));
+            g.liveViewImageUpdated(img);
+        }
+        catch (IOException ex)
+        {
+            Logger.getLogger(GuiEventListener.class.getName()).log(Level.SEVERE, null, ex);
+        } 
     }
 }
 
