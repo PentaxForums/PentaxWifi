@@ -324,6 +324,10 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 // Get the thumbnail
                 this.m.downloadImage(null, image, true, this);
             }
+            else
+            {
+                this.thumbnailArea.setIcon(null);
+            }
             
             if (doTransferFiles)
             {
@@ -433,19 +437,18 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     @Override
     synchronized public void imageCaptureComplete(boolean captureOk, int remaining)
     {
-        updateBattery();
-
         if (!captureOk)
         {
             this.m.emptyQueue();
-            JOptionPane.showMessageDialog(this, String.format("Shooting interrupted on frame %d.", this.queueProgressBar.getMaximum() - remaining + 1));
+            JOptionPane.showMessageDialog(this, String.format("Shooting interrupted on frame %d.  Possible camera timeout - try reconnecting.", this.queueProgressBar.getMaximum() - remaining));
         }
         else if (processing)
         {
             this.queueProgressBar.setValue(this.queueProgressBar.getMaximum() - remaining);
         }
-                
+             
         endProcessing();
+        updateBattery();
     }
     
     synchronized private void processImageDownload(CameraImage i)
@@ -1512,28 +1515,27 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             for (int r = 0; r < t.getRowCount(); r++)
             {
                 List<CaptureSetting> settings = new ArrayList<>();
-
                 
-                    for (int c = 0; c < t.getColumnCount(); c++)
+                for (int c = 0; c < t.getColumnCount(); c++)
+                {
+                    try
                     {
-                        try
+                        if (((ComboItem) t.getValueAt(r, c)).getValue() != null)
                         {
-                            if (((ComboItem) t.getValueAt(r, c)).getValue() != null)
-                            {
-                                settings.add( 
-                                        ((CaptureSetting) ((ComboItem) t.getValueAt(r, c)).getValue())
-                                );
-                            }
+                            settings.add( 
+                                    ((CaptureSetting) ((ComboItem) t.getValueAt(r, c)).getValue())
+                            );
                         }
-                        catch (Exception e)
-                        {
-                            JOptionPane.showMessageDialog(this, String.format("Error: invalid %s setting value %s.", t.getColumnName(c), t.getValueAt(r, c).toString()));
-                            return;
-                        }
-                                
+                    }
+                    catch (Exception e)
+                    {
+                        JOptionPane.showMessageDialog(this, String.format("Error: invalid %s setting value %s.", t.getColumnName(c), t.getValueAt(r, c).toString()));
+                        return;
                     }
 
-                    m.enqueuePhoto(new FuturePhoto(false, settings));    
+                }
+
+                m.enqueuePhoto(new FuturePhoto(false, settings));    
             }
         
             if (this.m.getQueueSize() != 0)
@@ -1808,6 +1810,8 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
 
     private void doExit()
     {
+        dispose();
+        
         if (this.lastThumb != null)
         {
             this.lastThumb.delete();
@@ -1854,17 +1858,20 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         f.setCurrentDirectory(new File(this.saveFilePath));
         f.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         f.showSaveDialog(null);
-
-        String path = f.getSelectedFile().getAbsolutePath();
-
-        if (!validatePath(path))
+        
+        if (f.getSelectedFile() != null)
         {
-            JOptionPane.showMessageDialog(this, "Invalid folder path chosen.");
-        }
-        else
-        {
-            prefs.put("saveFilePath", path);
-            loadPrefs();
+            String path = f.getSelectedFile().getAbsolutePath();
+
+            if (!validatePath(path))
+            {
+                JOptionPane.showMessageDialog(this, "Invalid folder path chosen.");
+            }
+            else
+            {
+                prefs.put("saveFilePath", path);
+                loadPrefs();
+            }
         }
     }//GEN-LAST:event_selectFilePathActionPerformed
 
@@ -1895,7 +1902,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     }//GEN-LAST:event_viewFilesActionPerformed
 
     private void exitMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_exitMenuItemActionPerformed
-        dispose();
+        
         doExit();
     }//GEN-LAST:event_exitMenuItemActionPerformed
 

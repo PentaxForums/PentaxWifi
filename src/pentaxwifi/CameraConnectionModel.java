@@ -314,7 +314,9 @@ public class CameraConnectionModel
             
             for (CameraEventListener e : this.cam.getEventListeners())
             {
-                e.captureComplete(null, null);
+                (new Thread (() -> {
+                  e.captureComplete(null, null);  
+                })).start();
             }
         }
     }
@@ -693,8 +695,11 @@ public class CameraConnectionModel
         {
             for (CameraEventListener e : this.cam.getEventListeners())
             {
-                e.captureComplete(null, null);
+                (new Thread (() -> {
+                  e.captureComplete(null, null);  
+                })).start();
             }
+            
             throw new CameraException("Image capture FAILED: " + response.getErrors().get(0).getMessage());
         }
 
@@ -726,7 +731,6 @@ public class CameraConnectionModel
         {
             throw new CameraException("Camera does not support image capture.");
         }
-        
         
         if (startCaptureResponse.getResult() == Result.OK)
         {
