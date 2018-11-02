@@ -88,14 +88,11 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     // Default path for saving photos
     private static final String DEFAULT_PATH = System.getProperty("user.dir");
     
-    // Set to true to bypass camera connection
-    private static final Boolean TEST = false;
-    
     // Default empty dropdown entry
     public static final ComboItem DEFAULT_COMBO_ITEM = new ComboItem("---", null);
     
     // Version number
-    public static final String VERSION_NUMBER = "1.0.0 Beta 2";
+    public static final String VERSION_NUMBER = "1.0.0 Beta 3";
     public static final String SW_NAME = "Pentax Wi-Fi Tether by PentaxForums.com";
     
     /**
@@ -112,11 +109,8 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         thumbsTransmitting = 0;
         downloadTasks = new LinkedList<>();
         
-        if (!TEST)
-        {
-            connect();
-        }
-                
+        connect();
+               
         m.addListener(new GuiEventListener(m, this));
         
         // Initialize GUI state
@@ -156,12 +150,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         // Render UI
             
         initComponents();
-        
-        if (!TEST)
-        {
-            initLabels();     
-        }
-        
+        initLabels();     
         loadPrefs();
         
         // Empty the table
@@ -1853,7 +1842,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     }//GEN-LAST:event_formWindowClosing
 
     private void aboutMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_aboutMenuItemActionPerformed
-        JOptionPane.showMessageDialog(this, SW_NAME + " v"+VERSION_NUMBER+".\nProject page: github.com/PentaxForums");
+        JOptionPane.showMessageDialog(this, SW_NAME + " v"+VERSION_NUMBER+".\nProject page: https://github.com/PentaxForums");
     }//GEN-LAST:event_aboutMenuItemActionPerformed
 
     private void loaderLabelThumbMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_loaderLabelThumbMouseClicked
