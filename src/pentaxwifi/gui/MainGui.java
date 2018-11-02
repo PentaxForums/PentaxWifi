@@ -92,7 +92,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     public static final ComboItem DEFAULT_COMBO_ITEM = new ComboItem("---", null);
     
     // Version number
-    public static final String VERSION_NUMBER = "1.0.0 Beta 3";
+    public static final String VERSION_NUMBER = "1.0.0 Beta 4";
     public static final String SW_NAME = "Pentax Wi-Fi Tether by PentaxForums.com";
     
     /**
@@ -108,12 +108,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         imagesTransmitting = 0;
         thumbsTransmitting = 0;
         downloadTasks = new LinkedList<>();
-        
-        connect();
-               
-        m.addListener(new GuiEventListener(m, this));
-        
-        // Initialize GUI state
         
         // Set look and feel - prefer OS
         try
@@ -142,6 +136,12 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         {
             java.util.logging.Logger.getLogger(MainGui.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
         }
+        
+        // Initialize connection
+        connect();
+        m.addListener(new GuiEventListener(m, this));
+        
+        // Initialize GUI state
         
         // Set icon
         ImageIcon img = new ImageIcon(getClass().getClassLoader().getResource(MainGui.ICON));
