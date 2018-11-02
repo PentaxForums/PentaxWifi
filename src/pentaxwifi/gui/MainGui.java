@@ -544,14 +544,23 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
      */
     @Override
     public void disconnect()
-    {
+    {        
         if (doAutoReconnect)
         {
-            autoReconnect();       
+            autoReconnect();   
         }
         else
         {
             connectFailed();
+        }
+        
+        // Attempt to automatically restart LV on reconnect
+        if (this.lv != null)
+        {
+            if (this.lv.isVisible())
+            {
+                this.startLiveViewMenuActionPerformed(null);
+            }
         }
     }
     
@@ -1862,9 +1871,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         return ((CameraSettingTableModel) this.queueTable.getModel()).unserialize(file.getAbsolutePath(),
                 this.m.getAvailableAv(), this.m.getAvailableTv(), this.m.getAvailableISO(), this.m.getAvailableEV());
     }
-    
-
-    
     
     private void openMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_openMenuItemActionPerformed
         // Open menu
