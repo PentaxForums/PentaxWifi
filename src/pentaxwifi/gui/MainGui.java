@@ -479,6 +479,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             this.processing = false;
                         
             // Start all downloading at the end
+            // TODO - delay until live view ends
             while (!this.downloadTasks.isEmpty())
             {
                 processImageDownload(this.downloadTasks.remove(0));
@@ -491,6 +492,8 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         JOptionPane pane = new JOptionPane("Please wait, attempting to automatically reconnect.  Exit program instead?",  JOptionPane.PLAIN_MESSAGE, JOptionPane.DEFAULT_OPTION);
         JDialog getTopicDialog =  pane.createDialog(this, "Connection Lost");
 
+        abortTransfer();
+        
         (new Thread()
         {  
             @Override
@@ -537,6 +540,8 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                     break;
             }
         }      
+        
+        restartLv();
     }
     
     /**
@@ -553,7 +558,10 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         {
             connectFailed();
         }
-        
+    }
+    
+    private void restartLv()
+    {
         // Attempt to automatically restart LV on reconnect
         if (this.lv != null)
         {
@@ -583,7 +591,10 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             catch (CameraException ex)
             {
                 connectFailed();
+                return;
             }
+            
+            restartLv();
         }
         else
         {
@@ -1813,10 +1824,11 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             {
                 m.setCaptureSettings(getSettings());
                 
-                m.captureStillImage(false);
+                m.captureStillImage(false);                
             }
             catch (CameraException ex)
             {
+                // TODO - add auto reconnect functionality so this error is never shown
                 JOptionPane.showMessageDialog(parent, ex.toString());
             }
             finally
@@ -1910,13 +1922,13 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
      */
     private void doExit()
     {
-        dispose();
-        
         if (this.lv != null)
         {
             this.lv.end();
             this.lv.dispose();
         }
+        
+        dispose();
         
         if (this.lastThumb != null)
         {
@@ -2015,6 +2027,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private void troubleshootingMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_troubleshootingMenuItemActionPerformed
         JOptionPane.showMessageDialog(this, 
                 "If the connection to the camera in unstable, please power cycle the camera and reconnect to it."
+                        + "\n\nRAW+ file transfer is known to be unreliable."
                         + "\n\nThe Ricoh SDK does not work well when there are many files on the camera, so please use a formatted card if possible."
                         + "\n\nFor help, visit PentaxForums.com.");
     }//GEN-LAST:event_troubleshootingMenuItemActionPerformed
@@ -2045,7 +2058,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             @Override
             public void run()
             {
-                abortTransfer();
+                //abortTransfer();
                 m.disconnect();
                 autoReconnect(); 
             }
@@ -2112,12 +2125,16 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         {
             this.lv = new LiveViewGui(this.m);
         }
-        
-        this.lv.setVisible(true);
-        
+         
         try
         {
+            if (this.lv.isVisible())
+            {
+                 this.m.stopLiveView();           
+            }
+            
             this.m.startLiveView();
+            this.lv.setVisible(true);
         }
         catch (CameraException ex)
         {

@@ -202,6 +202,8 @@ public class CameraConnectionModel
                         f = new File(savePath + "/" + i.getName());
                     }
                     
+                    // TODO - ensure these are properly close if thread interrupted
+                    
                     Response response;
                     
                     outputStream = new FileOutputStream(f);

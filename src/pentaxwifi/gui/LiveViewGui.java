@@ -22,6 +22,7 @@ public class LiveViewGui extends javax.swing.JFrame {
     
     /**
      * Creates new form LiveViewGui
+     * @param m
      */
     public LiveViewGui(CameraConnectionModel m)
     {
@@ -88,6 +89,8 @@ public class LiveViewGui extends javax.swing.JFrame {
         {
             Logger.getLogger(LiveViewGui.class.getName()).log(Level.SEVERE, null, ex);
         }
+        
+        this.liveViewArea.setVisible(false);
     }
     
     private void formWindowClosing(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowClosing
@@ -107,6 +110,7 @@ public class LiveViewGui extends javax.swing.JFrame {
         else
         {
             this.liveViewArea.setIcon(new ImageIcon(img));
+            this.liveViewArea.setVisible(true);
         }
     }
 
