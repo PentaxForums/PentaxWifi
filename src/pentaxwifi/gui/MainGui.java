@@ -95,7 +95,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     public static final ComboItem DEFAULT_COMBO_ITEM = new ComboItem("---", null);
     
     // Version number
-    public static final String VERSION_NUMBER = "1.0.0 Beta 4";
+    public static final String VERSION_NUMBER = "1.0.0 Beta 5";
     public static final String SW_NAME = "Pentax Wi-Fi Tether by PentaxForums.com";
     
     /**
@@ -1959,7 +1959,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     }
     
     private void formWindowClosing(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowClosing
-        
         doExit();
     }//GEN-LAST:event_formWindowClosing
 
