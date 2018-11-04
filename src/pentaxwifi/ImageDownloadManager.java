@@ -108,22 +108,30 @@ public class ImageDownloadManager
     /**
      * Empties the thumb download queue
      */
-    public void clearThumbQueue()
+    synchronized public void clearThumbQueue()
     {
         if (this.numThumbsProcessing == 0)
         {
             this.toDownloadThumbs.clear();
+        }
+        else
+        {
+            System.out.println("Thumbs downloading, cannot clear queue.");
         }
     }
     
     /**
      * Empties the image download queue
      */
-    public void clearImageQueue()
+    synchronized public void clearImageQueue()
     {
         if (this.numImagesProcessing == 0)
         {
             this.toDownloadImages.clear();
+        }
+        else
+        {
+            System.out.println("Images downloading, cannot clear queue.");
         }
     }
     

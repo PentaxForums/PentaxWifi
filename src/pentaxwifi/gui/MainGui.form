@@ -65,7 +65,7 @@
           <SubComponents>
             <MenuItem class="javax.swing.JMenuItem" name="abortIntervalMenuItem">
               <Properties>
-                <Property name="text" type="java.lang.String" value="Abort Interval Shooting"/>
+                <Property name="text" type="java.lang.String" value="Abort Queue/Capture"/>
               </Properties>
               <Events>
                 <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="abortIntervalMenuItemActionPerformed"/>
@@ -73,7 +73,7 @@
             </MenuItem>
             <MenuItem class="javax.swing.JMenuItem" name="abortTransferMenuItem">
               <Properties>
-                <Property name="text" type="java.lang.String" value="Abort Image Transfer"/>
+                <Property name="text" type="java.lang.String" value="Abort Active Image Transfers"/>
               </Properties>
               <Events>
                 <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="abortTransferMenuItemActionPerformed"/>
@@ -97,7 +97,7 @@
             <MenuItem class="javax.swing.JCheckBoxMenuItem" name="transferThumbnails">
               <Properties>
                 <Property name="selected" type="boolean" value="true"/>
-                <Property name="text" type="java.lang.String" value="Transfer Thumbnails"/>
+                <Property name="text" type="java.lang.String" value="Show Thumbnails"/>
               </Properties>
               <Events>
                 <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="transferThumbnailsActionPerformed"/>
@@ -110,6 +110,24 @@
               </Properties>
               <Events>
                 <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="autoReconnectActionPerformed"/>
+              </Events>
+            </MenuItem>
+            <MenuItem class="javax.swing.JCheckBoxMenuItem" name="resetCaptureQueue">
+              <Properties>
+                <Property name="selected" type="boolean" value="true"/>
+                <Property name="text" type="java.lang.String" value="Reset Capture Queue on Abort"/>
+              </Properties>
+              <Events>
+                <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="resetCaptureQueueActionPerformed"/>
+              </Events>
+            </MenuItem>
+            <MenuItem class="javax.swing.JCheckBoxMenuItem" name="clearOnAbort">
+              <Properties>
+                <Property name="selected" type="boolean" value="true"/>
+                <Property name="text" type="java.lang.String" value="Remove Pending Transfers on Abort"/>
+              </Properties>
+              <Events>
+                <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="clearOnAbortActionPerformed"/>
               </Events>
             </MenuItem>
           </SubComponents>
@@ -241,7 +259,7 @@
                           <EmptySpace max="32767" attributes="0"/>
                           <Component id="batteryLevel" min="-2" pref="60" max="-2" attributes="0"/>
                       </Group>
-                      <Component id="jPanel8" min="-2" max="-2" attributes="0"/>
+                      <Component id="fileManagementArea" min="-2" max="-2" attributes="0"/>
                   </Group>
                   <EmptySpace min="0" pref="0" max="32767" attributes="0"/>
                   <Component id="thumbnailArea" min="-2" pref="182" max="-2" attributes="0"/>
@@ -263,7 +281,7 @@
                               <Component id="batteryLevel" alignment="0" max="32767" attributes="0"/>
                           </Group>
                           <EmptySpace min="-2" pref="11" max="-2" attributes="0"/>
-                          <Component id="jPanel8" min="-2" max="-2" attributes="0"/>
+                          <Component id="fileManagementArea" min="-2" max="-2" attributes="0"/>
                       </Group>
                   </Group>
                   <EmptySpace max="32767" attributes="0"/>
@@ -272,7 +290,7 @@
         </DimensionLayout>
       </Layout>
       <SubComponents>
-        <Container class="javax.swing.JPanel" name="jPanel8">
+        <Container class="javax.swing.JPanel" name="fileManagementArea">
           <Properties>
             <Property name="border" type="javax.swing.border.Border" editor="org.netbeans.modules.form.editors2.BorderEditor">
               <Border info="org.netbeans.modules.form.compat2.border.LineBorderInfo">

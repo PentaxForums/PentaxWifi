@@ -74,6 +74,8 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private Boolean doTransferRawFiles;
     private Boolean doTransferThumbnails;
     private Boolean doAutoReconnect;
+    private Boolean doClearOnAbort;
+    private Boolean doResetCaptureQueue;
     private ScheduledExecutorService pool;
     private File lastThumb;
     private LiveViewGui lv;
@@ -202,24 +204,24 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 addQueueButtonActionPerformed(null); 
             }
         });
-        JMenuItem menuItem3 = new JMenuItem("- ISO + Shutter Speed (1 EV)");
+        JMenuItem menuItem3 = new JMenuItem("- ISO - Shutter Speed (1 EV)");
         menuItem3.addActionListener((ActionEvent e) -> {
-            if(adjust(isoMenu, -1) && adjust(tvMenu, 3))
+            if(adjust(isoMenu, -1) && adjust(tvMenu, -3))
             {
                 addQueueButtonActionPerformed(null); 
             }
         });
-        JMenuItem menuItem4 = new JMenuItem("+ ISO - Shutter Speed (1 EV)");
+        JMenuItem menuItem4 = new JMenuItem("+ ISO + Shutter Speed (1 EV)");
         menuItem4.addActionListener((ActionEvent e) -> {
-            if(adjust(isoMenu, 1) && adjust(tvMenu, -3))
+            if(adjust(isoMenu, 1) && adjust(tvMenu, 3))
             {
                 addQueueButtonActionPerformed(null); 
             }
         });
         popupMenu1.add(menuItem1);
         popupMenu1.add(menuItem2);
-        popupMenu1.add(menuItem3);
         popupMenu1.add(menuItem4);
+        popupMenu1.add(menuItem3);
         addQueueButton.setComponentPopupMenu(popupMenu1);
         
         // Enable right-click focus on capture
@@ -232,7 +234,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             }
             catch (CameraException ex)
             {
-                JOptionPane.showMessageDialog(null, "Failed to focus.  Is camera in MF mode?");
+                JOptionPane.showMessageDialog(null, "Failed to focus. Is camera in MF mode?");
             }
         });
         
@@ -257,7 +259,8 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
      */
     private void loadPrefs()
     {
-        // TODO - add option to clear queues on abort
+        doClearOnAbort = prefs.getBoolean("doClearOnAbort", false);
+        doResetCaptureQueue = prefs.getBoolean("doResetCaptureQueue", false);
         doTransferThumbnails = prefs.getBoolean("doTransferThumbnails", true);
         doTransferFiles = prefs.getBoolean("doTransferFiles", false);
         doTransferRawFiles = prefs.getBoolean("doTransferRawFiles", false);
@@ -285,6 +288,8 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         this.transferFiles.setSelected(doTransferFiles);
         this.transferThumbnails.setSelected(doTransferThumbnails);
         this.autoReconnect.setSelected(doAutoReconnect);
+        this.clearOnAbort.setSelected(doClearOnAbort);
+        this.resetCaptureQueue.setSelected(doResetCaptureQueue);
     }
     
     /**
@@ -292,7 +297,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
      * @param img 
      */
     @Override
-    public void liveViewImageUpdated(BufferedImage img)
+    synchronized public void liveViewImageUpdated(BufferedImage img)
     {
         if (this.lv != null)
         {
@@ -311,6 +316,19 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         {
             restartDownloads();
         }
+        
+        // Get the thumbnail
+        if (doTransferThumbnails)
+        {            
+            if (image.hasThumbnail())
+            {
+                this.m.getDownloadManager().downloadThumb(null, image, this);
+            }
+            else
+            {
+                this.thumbnailArea.setIcon(null);
+            }
+        }
                        
         // Main file
         if (   
@@ -327,19 +345,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             {
                 this.m.getDownloadManager().downloadImage(saveFilePath, image, this);              
             } 
-        }
-        
-        // Get the thumbnail
-        if (doTransferThumbnails)
-        {            
-            if (image.hasThumbnail())
-            {
-                this.m.getDownloadManager().downloadThumb(null, image, this);
-            }
-            else
-            {
-                this.thumbnailArea.setIcon(null);
-            }
         }
         
         refreshTransmitting();
@@ -433,7 +438,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         
         if (!captureOk)
         {
-            this.m.emptyQueue();
             JOptionPane.showMessageDialog(this, 
                 String.format("Shooting interrupted on frame %d.  Possible camera timeout - try reconnecting.", index)
             );
@@ -463,7 +467,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     
     synchronized private void endProcessing()
     {
-        if (this.m.getQueueSize() == 0)
+        if (this.m.isQueueEmpty() || !this.m.isQueueProcessing())
         {
             this.processQueueButton.setEnabled(true);
             this.queueProgressBar.setVisible(false);
@@ -485,7 +489,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             @Override
             public void run()
             {
-                while (!m.connected())
+                while (!m.isConnected())
                 {
                     try
                     {
@@ -586,7 +590,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         {
             try
             {
-                if (!m.connected())
+                if (!m.isConnected())
                 {
                     m.connect();
                 }
@@ -739,7 +743,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         buttonGroup1 = new javax.swing.ButtonGroup();
         jMenuItem11 = new javax.swing.JMenuItem();
         topPanel = new javax.swing.JPanel();
-        jPanel8 = new javax.swing.JPanel();
+        fileManagementArea = new javax.swing.JPanel();
         transferFiles = new javax.swing.JCheckBox();
         selectFilePath = new javax.swing.JButton();
         viewFiles = new javax.swing.JButton();
@@ -803,6 +807,8 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         optionsMenu = new javax.swing.JMenu();
         transferThumbnails = new javax.swing.JCheckBoxMenuItem();
         autoReconnect = new javax.swing.JCheckBoxMenuItem();
+        resetCaptureQueue = new javax.swing.JCheckBoxMenuItem();
+        clearOnAbort = new javax.swing.JCheckBoxMenuItem();
         helpMenu = new javax.swing.JMenu();
         troubleshootingMenuItem = new javax.swing.JMenuItem();
         aboutMenuItem = new javax.swing.JMenuItem();
@@ -825,10 +831,10 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         topPanel.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(0, 0, 0)));
         topPanel.setMinimumSize(new java.awt.Dimension(684, 184));
 
-        jPanel8.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(0, 0, 0)));
-        jPanel8.setMaximumSize(new java.awt.Dimension(470, 110));
-        jPanel8.setMinimumSize(new java.awt.Dimension(470, 110));
-        jPanel8.setRequestFocusEnabled(false);
+        fileManagementArea.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(0, 0, 0)));
+        fileManagementArea.setMaximumSize(new java.awt.Dimension(470, 110));
+        fileManagementArea.setMinimumSize(new java.awt.Dimension(470, 110));
+        fileManagementArea.setRequestFocusEnabled(false);
 
         transferFiles.setText("Transfer JPG");
         transferFiles.addActionListener(new java.awt.event.ActionListener() {
@@ -868,21 +874,21 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             }
         });
 
-        javax.swing.GroupLayout jPanel8Layout = new javax.swing.GroupLayout(jPanel8);
-        jPanel8.setLayout(jPanel8Layout);
-        jPanel8Layout.setHorizontalGroup(
-            jPanel8Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(jPanel8Layout.createSequentialGroup()
+        javax.swing.GroupLayout fileManagementAreaLayout = new javax.swing.GroupLayout(fileManagementArea);
+        fileManagementArea.setLayout(fileManagementAreaLayout);
+        fileManagementAreaLayout.setHorizontalGroup(
+            fileManagementAreaLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(fileManagementAreaLayout.createSequentialGroup()
                 .addContainerGap()
-                .addGroup(jPanel8Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(jPanel8Layout.createSequentialGroup()
+                .addGroup(fileManagementAreaLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(fileManagementAreaLayout.createSequentialGroup()
                         .addComponent(selectFilePath)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(viewFiles)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                         .addComponent(numImagesTransmitting, javax.swing.GroupLayout.PREFERRED_SIZE, 188, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                    .addGroup(jPanel8Layout.createSequentialGroup()
+                    .addGroup(fileManagementAreaLayout.createSequentialGroup()
                         .addComponent(transferFiles)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                         .addComponent(transferRawFiles)
@@ -890,17 +896,17 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                         .addComponent(loaderLabelTransfer)
                         .addGap(25, 25, 25))))
         );
-        jPanel8Layout.setVerticalGroup(
-            jPanel8Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(jPanel8Layout.createSequentialGroup()
+        fileManagementAreaLayout.setVerticalGroup(
+            fileManagementAreaLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(fileManagementAreaLayout.createSequentialGroup()
                 .addContainerGap()
-                .addGroup(jPanel8Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(jPanel8Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                .addGroup(fileManagementAreaLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(fileManagementAreaLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                         .addComponent(transferFiles)
                         .addComponent(transferRawFiles))
                     .addComponent(loaderLabelTransfer))
                 .addGap(18, 18, 18)
-                .addGroup(jPanel8Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                .addGroup(fileManagementAreaLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(selectFilePath)
                     .addComponent(viewFiles)
                     .addComponent(numImagesTransmitting, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
@@ -951,7 +957,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                         .addComponent(cameraSerialLabel)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                         .addComponent(batteryLevel, javax.swing.GroupLayout.PREFERRED_SIZE, 60, javax.swing.GroupLayout.PREFERRED_SIZE))
-                    .addComponent(jPanel8, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addComponent(fileManagementArea, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addGap(0, 0, Short.MAX_VALUE)
                 .addComponent(thumbnailArea, javax.swing.GroupLayout.PREFERRED_SIZE, 182, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addContainerGap())
@@ -969,7 +975,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                             .addComponent(cameraSerialLabel)
                             .addComponent(batteryLevel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
                         .addGap(11, 11, 11)
-                        .addComponent(jPanel8, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                        .addComponent(fileManagementArea, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)))
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
 
@@ -1453,7 +1459,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
 
         editMenu.setText("Edit");
 
-        abortIntervalMenuItem.setText("Abort Interval Shooting");
+        abortIntervalMenuItem.setText("Abort Queue/Capture");
         abortIntervalMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 abortIntervalMenuItemActionPerformed(evt);
@@ -1461,7 +1467,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         });
         editMenu.add(abortIntervalMenuItem);
 
-        abortTransferMenuItem.setText("Abort Image Transfer");
+        abortTransferMenuItem.setText("Abort Active Image Transfers");
         abortTransferMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 abortTransferMenuItemActionPerformed(evt);
@@ -1482,7 +1488,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         optionsMenu.setText("Options");
 
         transferThumbnails.setSelected(true);
-        transferThumbnails.setText("Transfer Thumbnails");
+        transferThumbnails.setText("Show Thumbnails");
         transferThumbnails.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 transferThumbnailsActionPerformed(evt);
@@ -1498,6 +1504,24 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             }
         });
         optionsMenu.add(autoReconnect);
+
+        resetCaptureQueue.setSelected(true);
+        resetCaptureQueue.setText("Reset Capture Queue on Abort");
+        resetCaptureQueue.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                resetCaptureQueueActionPerformed(evt);
+            }
+        });
+        optionsMenu.add(resetCaptureQueue);
+
+        clearOnAbort.setSelected(true);
+        clearOnAbort.setText("Remove Pending Transfers on Abort");
+        clearOnAbort.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                clearOnAbortActionPerformed(evt);
+            }
+        });
+        optionsMenu.add(clearOnAbort);
 
         mainMenuBar.add(optionsMenu);
 
@@ -1572,50 +1596,58 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
 
         // Enqueue items
         CameraSettingTableModel t = (CameraSettingTableModel) this.queueTable.getModel();
-                
-        m.emptyQueue();
-        
-        // Highlight first row
-        if (this.queueTable.getRowCount() > 0)
+          
+        if (doResetCaptureQueue)
         {
-            this.queueTable.setRowSelectionInterval(0, 0);
+            m.emptyQueue();
         }
         
         try
         {
-            for (int r = 0; r < t.getRowCount(); r++)
+            if (m.isQueueEmpty())
             {
-                List<CaptureSetting> settings = new ArrayList<>();
-                
-                for (int c = 0; c < t.getColumnCount(); c++)
+                for (int r = 0; r < t.getRowCount(); r++)
                 {
-                    try
+                    List<CaptureSetting> settings = new ArrayList<>();
+
+                    for (int c = 0; c < t.getColumnCount(); c++)
                     {
-                        if (((ComboItem) t.getValueAt(r, c)).getValue() != null)
+                        try
                         {
-                            settings.add( 
-                                    ((CaptureSetting) ((ComboItem) t.getValueAt(r, c)).getValue())
-                            );
+                            if (((ComboItem) t.getValueAt(r, c)).getValue() != null)
+                            {
+                                settings.add( 
+                                        ((CaptureSetting) ((ComboItem) t.getValueAt(r, c)).getValue())
+                                );
+                            }
                         }
-                    }
-                    catch (Exception e)
-                    {
-                        JOptionPane.showMessageDialog(this, String.format("Error: invalid %s setting value %s.", t.getColumnName(c), t.getValueAt(r, c).toString()));
-                        return;
+                        catch (Exception e)
+                        {
+                            JOptionPane.showMessageDialog(this, String.format("Error: invalid %s setting value %s.", t.getColumnName(c), t.getValueAt(r, c).toString()));
+                            return;
+                        }
+
                     }
 
+                    m.enqueuePhoto(new FuturePhoto(false, settings));    
                 }
-
-                m.enqueuePhoto(new FuturePhoto(false, settings));    
+                
+                // Reset progress bar
+                this.queueProgressBar.setValue(0);
+                this.queueProgressBar.setMaximum(this.m.getQueueSize());
             }
         
-            if (this.m.getQueueSize() != 0)
+            if (!m.isQueueEmpty())
             {
                 this.processQueueButton.setEnabled(false);
                 this.queueProgressBar.setStringPainted(true);
-                this.queueProgressBar.setValue(0);
-                this.queueProgressBar.setMaximum(this.m.getQueueSize());
                 this.queueProgressBar.setVisible(true);
+                
+                // Highlight first/correct table row
+                if (this.queueTable.getRowCount() >= queueProgressBar.getValue() + 1)
+                {
+                    this.queueTable.setRowSelectionInterval(queueProgressBar.getValue(), queueProgressBar.getValue());
+                }
                                 
                 m.processQueue(getDelaySeconds());
             }
@@ -1654,14 +1686,20 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
      */
     private void deleteFromTable()
     {
-        CameraSettingTableModel t = (CameraSettingTableModel) this.queueTable.getModel();
-
-        while (this.queueTable.getSelectedRow() >= 0)
+        if (this.m.isQueueEmpty())
         {
-            t.removeRow(this.queueTable.getSelectedRow());
+            CameraSettingTableModel t = (CameraSettingTableModel) this.queueTable.getModel();
+
+            while (this.queueTable.getSelectedRow() >= 0)
+            {
+                t.removeRow(this.queueTable.getSelectedRow());
+            }
         }
-        
-        this.queueTable.setModel(t);
+        // Cannot delete if the queue is not empty
+        else
+        {
+            JOptionPane.showMessageDialog(this, String.format("There are %d pending captures in the queue.\n\nProcess queue or abort via Edit menu (ensure Reset option is selected in the Options Menu).", this.m.getQueueSize()));
+        }
     }
     
     private void decAvActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_decAvActionPerformed
@@ -1829,13 +1867,11 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             try
             {
                 m.setCaptureSettings(getSettings());
-                
                 m.captureStillImage(false);                
             }
             catch (CameraException ex)
             {
-                // TODO - add auto reconnect functionality so this error is never shown
-                JOptionPane.showMessageDialog(parent, ex.toString());
+                JOptionPane.showMessageDialog(parent, ex.toString() + "\n\nIs the camera in single frame mode?");
             }
             finally
             {
@@ -2047,6 +2083,12 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         if (this.m.getDownloadManager().getNumProcessingAll() != 0)
         {
             this.m.getDownloadManager().abortDownloading(this);
+            
+            if (this.doClearOnAbort)
+            {
+                this.m.getDownloadManager().clearImageQueue();
+            }
+            
             refreshTransmitting();  
         }
     }
@@ -2107,7 +2149,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         if (this.m.isQueueProcessing())
         {
             this.m.abortQueue();
-            this.m.emptyQueue();
             endProcessing();
         }
         else
@@ -2115,6 +2156,11 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             pool.shutdownNow();
             captureButton.setEnabled(true);
             loaderLabelPhoto.setVisible(false);
+        }
+        
+        if (doResetCaptureQueue)
+        {
+            m.emptyQueue();
         }
     }//GEN-LAST:event_abortIntervalMenuItemActionPerformed
 
@@ -2152,6 +2198,18 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         restartDownloads();
     }//GEN-LAST:event_resumeDownloadsMenuActionPerformed
 
+    private void clearOnAbortActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_clearOnAbortActionPerformed
+        prefs.putBoolean("doClearOnAbort", this.clearOnAbort.isSelected());
+
+        loadPrefs();
+    }//GEN-LAST:event_clearOnAbortActionPerformed
+
+    private void resetCaptureQueueActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_resetCaptureQueueActionPerformed
+        prefs.putBoolean("doResetCaptureQueue", this.resetCaptureQueue.isSelected());
+
+        loadPrefs();
+    }//GEN-LAST:event_resetCaptureQueueActionPerformed
+
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JRadioButton Seconds;
     private javax.swing.JMenuItem abortIntervalMenuItem;
@@ -2169,6 +2227,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private javax.swing.JLabel cameraSerialLabel;
     private javax.swing.JButton captureButton;
     private javax.swing.JLabel captureQueueTextLabel;
+    private javax.swing.JCheckBoxMenuItem clearOnAbort;
     private javax.swing.JButton decAv;
     private javax.swing.JButton decEV;
     private javax.swing.JButton decISO;
@@ -2182,6 +2241,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private javax.swing.JMenuItem exitMenuItem;
     private javax.swing.JPanel exposurePanel;
     private javax.swing.JLabel exposureTextLabel;
+    private javax.swing.JPanel fileManagementArea;
     private javax.swing.JMenu fileMenu;
     private javax.swing.JMenu helpMenu;
     private javax.swing.JButton incAv;
@@ -2193,7 +2253,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private javax.swing.JLabel isoTextLabel;
     private javax.swing.JMenuItem jMenuItem11;
     private javax.swing.JPanel jPanel6;
-    private javax.swing.JPanel jPanel8;
     private javax.swing.JScrollPane jScrollPane2;
     private javax.swing.JLabel loaderLabelPhoto;
     private javax.swing.JLabel loaderLabelTransfer;
@@ -2207,6 +2266,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private javax.swing.JProgressBar queueProgressBar;
     private javax.swing.JTable queueTable;
     private javax.swing.JButton refreshButton;
+    private javax.swing.JCheckBoxMenuItem resetCaptureQueue;
     private javax.swing.JMenuItem restartMenuItem;
     private javax.swing.JMenuItem resumeDownloadsMenu;
     private javax.swing.JMenuItem saveMenuItem;

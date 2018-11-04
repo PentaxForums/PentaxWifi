@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -60,9 +61,10 @@ public class CameraConnectionModel
     private ISO iso;
     // TODO - also track other state supported by the SDK, such as WB and CI
 
-    private final Queue<FuturePhoto> imageQueue;
+    private final Deque<FuturePhoto> imageQueue;
     private final Map<Capture, Boolean> captureState;
     private final List<CameraImage> capturedImages;
+    private FuturePhoto p;
 
     private boolean queueLocked;
     private ScheduledExecutorService capturePool;
@@ -128,7 +130,7 @@ public class CameraConnectionModel
      */
     public List<CameraImage> getAllImagesOnCamera() throws CameraException
     {
-        if (connected())
+        if (isConnected())
         {
             return this.cam.getImages();
         }
@@ -145,7 +147,7 @@ public class CameraConnectionModel
     @Override
     public String toString()
     {
-        if (connected())
+        if (isConnected())
         {
             return String.format(this.getClass().getSimpleName() + ": %s %s %s %s %s", getCameraModel(), tv, av, ev, iso);
         }
@@ -182,6 +184,13 @@ public class CameraConnectionModel
             this.capturePool.shutdownNow();
             this.queueLocked = false;
             
+            // Restore uncaptured image
+            if (p != null)
+            {
+                this.imageQueue.addFirst(p);
+                p = null;
+            }
+            
             for (CameraEventListener e : this.cam.getEventListeners())
             {
                 (new Thread (() -> {
@@ -216,23 +225,28 @@ public class CameraConnectionModel
     private void dequeuePhoto(int timeout)
     {
         // Queue must be in progress to proceed
-        if (!queueLocked || !connected())
+        if (!queueLocked || !isConnected())
         {
             return;
         }
         
         if (!imageQueue.isEmpty())
         {
+            // It is possible that this will never be restored if thread gets interruped
             FuturePhoto next = imageQueue.remove();
+            
+            // So keep track of it...
+            p = next;
             
             try
             {                
                 Capture c = this.captureImageWithSettings(next.focus, next.settings);
+                captureState.put(c, false);
                 
                 int waited = 0;
                 
                 // Block thread until capture completes
-                while (!captureState.containsKey(c))
+                while (captureState.get(c) == false)
                 {
                     try
                     {   
@@ -246,12 +260,14 @@ public class CameraConnectionModel
                     }
                     catch (InterruptedException ex)
                     {
-                        // Put the image back in the queue
-                        imageQueue.add(next);
+                        // The abort function will put the image back into the queue
                         abortQueue();
                         return;
                     }                    
                 }
+                
+                // Capture was successful
+                p = null;
                 
                 if (imageQueue.isEmpty())
                 {
@@ -268,12 +284,21 @@ public class CameraConnectionModel
     }
     
     /**
-     * Checks the status of the image queue
+     * Checks the size of the image queue
      * @return 
      */
     synchronized public int getQueueSize()
     {
         return this.imageQueue.size();
+    }
+    
+    /**
+     * Checks if the image queue is empty
+     * @return 
+     */
+    synchronized public boolean isQueueEmpty()
+    {
+        return getQueueSize() == 0;
     }
     
     /**
@@ -290,7 +315,7 @@ public class CameraConnectionModel
      */
     synchronized public void emptyQueue()
     {
-        if (!this.queueLocked && connected())
+        if (!this.queueLocked && isConnected())
         {    
             this.imageQueue.clear();
         }
@@ -303,7 +328,7 @@ public class CameraConnectionModel
      */
     synchronized public void processQueue(int delay) throws CameraException
     {
-        if (!connected())
+        if (!isConnected())
         {
             throw new CameraException("Not connected.");
         }
@@ -322,11 +347,11 @@ public class CameraConnectionModel
                 Runnable r = () -> {
                     dequeuePhoto(timeout);
                 };
-                                
+                              
                 if (delay > 0)
-                {                                    
-                    capturePool.scheduleWithFixedDelay(
-                        r, 0, delay, TimeUnit.SECONDS);                    
+                {
+                    // scheduleAtFixedRate does not work as consistently
+                    capturePool.schedule(r, delay * i, TimeUnit.SECONDS);               
                 }
                 else
                 {
@@ -385,14 +410,22 @@ public class CameraConnectionModel
      */
     public void setCaptureSettings(List<CaptureSetting> settings) throws CameraException
     {                
-        if (connected())
+        if (isConnected())
         {  
             for (CaptureSetting s : settings)
             {
                 Response r = cam.setCaptureSettings(Arrays.asList(s));
-                if (r.getResult() == Result.ERROR)
+                
+                if (r != null)
                 {
-                    throw new CameraException("Settings configuration FAILED: " + r.getErrors().get(0).getMessage());
+                    if (r.getResult() == Result.ERROR)
+                    {
+                        throw new CameraException("Settings configuration FAILED: " + r.getErrors().get(0).getMessage());
+                    }
+                }
+                else
+                {
+                    throw new CameraException("Settings configuration FAILED: no response from camera.");
                 }
             }
         }
@@ -410,7 +443,7 @@ public class CameraConnectionModel
      */
     public void startLiveView() throws CameraException
     {
-        if (connected())
+        if (isConnected())
         {
             Response r = this.cam.startLiveView();
             if (r.getResult() == Result.ERROR)
@@ -430,7 +463,7 @@ public class CameraConnectionModel
      */
     public void stopLiveView() throws CameraException
     {
-        if (connected())
+        if (isConnected())
         {
             Response r = this.cam.stopLiveView();
             if (r.getResult() == Result.ERROR)
@@ -473,7 +506,7 @@ public class CameraConnectionModel
                 }
                 catch (InterruptedException ex) {}
                 
-                if (!connected())
+                if (!isConnected())
                 {
                     throw new CameraException(r.getErrors().toString());
                 }
@@ -528,7 +561,7 @@ public class CameraConnectionModel
             }, 0, KEEPALIVE, TimeUnit.SECONDS);
         }    
         
-        if (!connected())
+        if (!isConnected())
         {
             throw new CameraException("Failed to detect camera.");
         }
@@ -549,7 +582,7 @@ public class CameraConnectionModel
      */
     public void disconnect()
     {
-        if (connected())
+        if (isConnected())
         {
             cam.disconnect(DeviceInterface.WLAN);
             cam = null;
@@ -560,7 +593,7 @@ public class CameraConnectionModel
      * Checks if the connection was established
      * @return 
      */
-    public boolean connected()
+    public boolean isConnected()
     {
         return cam != null;
     }
@@ -571,7 +604,7 @@ public class CameraConnectionModel
      */
     public void focus() throws CameraException
     {
-        if (connected())
+        if (isConnected())
         {        
             try
             {
@@ -601,7 +634,7 @@ public class CameraConnectionModel
      */
     public Capture captureStillImage(boolean focus) throws CameraException
     {
-        if (!connected())
+        if (!isConnected())
         {
             throw new CameraException("Not connected");
         }
@@ -669,7 +702,7 @@ public class CameraConnectionModel
     
     public final void addListener(CameraEventListener e)
     {
-        if (connected())
+        if (isConnected())
         {
             cam.addEventListener(e);
         }
@@ -677,7 +710,7 @@ public class CameraConnectionModel
     
     public void removeListener(CameraEventListener e)
     {
-        if (connected())
+        if (isConnected())
         {
             cam.removeEventListener(e);
         }
@@ -687,7 +720,7 @@ public class CameraConnectionModel
     
     public String getCameraModel()
     {
-        if (connected())
+        if (isConnected())
         {
             return this.cam.getModel();
         }      
@@ -697,7 +730,7 @@ public class CameraConnectionModel
     
     public int getCameraBattery()
     {        
-        if (connected())
+        if (isConnected())
         {
             return this.cam.getStatus().getBatteryLevel();
         }
@@ -707,7 +740,7 @@ public class CameraConnectionModel
     
     public String getCameraSerial()
     {
-        if (connected())
+        if (isConnected())
         {
             return this.cam.getSerialNumber();
         }      
@@ -717,7 +750,7 @@ public class CameraConnectionModel
     
     public String getCameraManufacturer()
     {
-        if (connected())
+        if (isConnected())
         {
             return this.cam.getManufacturer();
         }      
@@ -727,7 +760,7 @@ public class CameraConnectionModel
     
     public String getCameraFirmware()
     {
-        if (connected())
+        if (isConnected())
         {
             return this.cam.getFirmwareVersion();
         }      
@@ -804,7 +837,7 @@ public class CameraConnectionModel
     
     public List<CaptureSetting> getAvailableAv()
     {
-        if (connected())
+        if (isConnected())
         {
             return this.av.getAvailableSettings();
         }
@@ -814,7 +847,7 @@ public class CameraConnectionModel
     
     public List<CaptureSetting> getAvailableTv()
     {
-        if (connected())
+        if (isConnected())
         {
             return this.tv.getAvailableSettings();
         }
@@ -824,7 +857,7 @@ public class CameraConnectionModel
     
     public List<CaptureSetting> getAvailableISO()
     {
-        if (connected())
+        if (isConnected())
         {
             return this.iso.getAvailableSettings();
         }
@@ -834,7 +867,7 @@ public class CameraConnectionModel
     
     public List<CaptureSetting> getAvailableEV()
     {
-        if (connected())
+        if (isConnected())
         {
             return this.ev.getAvailableSettings();
         }
