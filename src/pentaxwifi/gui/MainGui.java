@@ -507,7 +507,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                     } 
                     catch (CameraException ex)
                     {
-                        System.out.print(ex.toString());
+                        System.out.println(ex.toString());
                     }
                 }
 

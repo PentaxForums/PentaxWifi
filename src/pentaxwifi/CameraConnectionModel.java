@@ -202,7 +202,7 @@ public class CameraConnectionModel
                         f = new File(savePath + "/" + i.getName());
                     }
                     
-                    // TODO - ensure these are properly close if thread interrupted
+                    // TODO - ensure these are properly closed if thread interrupted
                     
                     Response response;
                     
