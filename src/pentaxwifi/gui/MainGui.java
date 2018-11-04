@@ -65,7 +65,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private CameraConnectionModel m;
     
     // Flag true if batch shooting in progress
-    private boolean processing;
+    //private boolean processing;
     
     // Internal state    
     private Preferences prefs;
@@ -74,10 +74,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private Boolean doTransferRawFiles;
     private Boolean doTransferThumbnails;
     private Boolean doAutoReconnect;
-    private int imagesTransmitting;
-    private int thumbsTransmitting;
     private ScheduledExecutorService pool;
-    private List<CameraImage> downloadTasks;
     private File lastThumb;
     private LiveViewGui lv;
     private Boolean initializing;
@@ -105,12 +102,8 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     {      
         // Initialize state
         prefs = Preferences.userRoot().node(this.getClass().getName());
-        processing = false;
         m = new CameraConnectionModel();     
         pool = Executors.newScheduledThreadPool(1);
-        imagesTransmitting = 0;
-        thumbsTransmitting = 0;
-        downloadTasks = new LinkedList<>();
         
         // Set look and feel - prefer OS
         try
@@ -151,7 +144,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         this.setIconImage(img.getImage());
         
         // Render UI
-            
         initComponents();
         initLabels();     
         loadPrefs();
@@ -189,9 +181,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         this.loaderLabelPhoto.setIcon(new ImageIcon(loadingImg.getImage()));
         this.loaderLabelPhoto.setText("");
         this.loaderLabelPhoto.setVisible(false);
-        this.loaderLabelThumb.setIcon(new ImageIcon(loadingImg.getImage()));
-        this.loaderLabelThumb.setText("");
-        this.loaderLabelThumb.setVisible(false);
         
         getContentPane().setBackground(Color.WHITE);
         thumbnailArea.setBackground(Color.WHITE);
@@ -268,6 +257,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
      */
     private void loadPrefs()
     {
+        // TODO - add option to clear queues on abort
         doTransferThumbnails = prefs.getBoolean("doTransferThumbnails", true);
         doTransferFiles = prefs.getBoolean("doTransferFiles", false);
         doTransferRawFiles = prefs.getBoolean("doTransferRawFiles", false);
@@ -297,6 +287,10 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         this.autoReconnect.setSelected(doAutoReconnect);
     }
     
+    /**
+     * Callback fired when a new LV frame comes in
+     * @param img 
+     */
     @Override
     public void liveViewImageUpdated(BufferedImage img)
     {
@@ -312,46 +306,39 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
      */
     @Override
     synchronized public void imageStored(CameraImage image)
-    {       
-        // Raw file
-        if ((image.getFormat() == ImageFormat.PEF || image.getFormat() == ImageFormat.DNG) && this.doTransferRawFiles)
+    {     
+        if (!this.m.isQueueProcessing())
         {
-            // We need to postpone downloading until the end to maintain stability            
-            if (processing)
+            restartDownloads();
+        }
+                       
+        // Main file
+        if (   
+            ((image.getFormat() == ImageFormat.PEF || image.getFormat() == ImageFormat.DNG || image.getFormat() == ImageFormat.TIFF) && this.doTransferRawFiles) ||
+            (image.getFormat() == ImageFormat.JPEG && doTransferFiles)    
+        )
+        {
+            // In batch shooting, we need to postpone downloading until the end to maintain stability            
+            if (this.m.isQueueProcessing())
             {
-                this.downloadTasks.add(image);
+                this.m.getDownloadManager().enqueueImage(image);
             }
             else
             {
-                processImageDownload(image);                 
+                this.m.getDownloadManager().downloadImage(saveFilePath, image, this);              
             } 
         }
-        // Jpeg file
-        else if (image.getFormat() == ImageFormat.JPEG)
-        {
-            if (doTransferThumbnails)
+        
+        // Get the thumbnail
+        if (doTransferThumbnails)
+        {            
+            if (image.hasThumbnail())
             {
-                thumbsTransmitting += 1;
-            
-                // Get the thumbnail
-                this.m.downloadImage(null, image, true, this);
+                this.m.getDownloadManager().downloadThumb(null, image, this);
             }
             else
             {
                 this.thumbnailArea.setIcon(null);
-            }
-            
-            if (doTransferFiles)
-            {
-                // We need to postpone downloading until the end to maintain stability            
-                if (processing)
-                {
-                    this.downloadTasks.add(image);
-                }
-                else
-                {
-                    processImageDownload(image);                 
-                }                
             }
         }
         
@@ -370,11 +357,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         // File transfer failed...
         if (f == null)
         {
-            if (!isThumbnail)
-            {
-                imagesTransmitting -= 1;
-            }
-            
             if (image != null)
             {
                 JOptionPane.showMessageDialog(this, "Failed to fetch " + (isThumbnail ? "thumbnail" : "image") + " " + image.getName());
@@ -396,8 +378,8 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                     myPicture = ImageIO.read(f);
                     this.thumbnailArea.setIcon(new ImageIcon(myPicture));
                     
-                     // Delete the temporary thumbnail file
-                    this.m.getDownloadedThumb(image).delete();   
+                    // Delete the temporary thumbnail file
+                    this.m.getDownloadManager().getDownloadedThumb(image).delete();   
                     
                     this.lastThumb = f;
                 }
@@ -405,12 +387,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 {
                     Logger.getLogger(MainGui.class.getName()).log(Level.SEVERE, null, ex);
                 }
-                 
-                thumbsTransmitting -= 1;
-            }
-            else
-            {
-                imagesTransmitting -= 1;
             }
             
             System.out.println("Downloaded: " + f.getAbsolutePath());
@@ -423,22 +399,26 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
      * Updates the state of the UI spinner
      */
     private void refreshTransmitting()
-    {                
-        if (imagesTransmitting > 0)
+    {   
+        if (this.numImagesTransmitting != null)
         {
-            this.numImagesTransmitting.setText(
-                Integer.toString(imagesTransmitting) + " file" + 
-                        ((imagesTransmitting != 1) ? "s" : "") 
-                        + " being copied."
-            ); 
+            int imagesTransmitting = m.getDownloadManager().getNumProcessingAll();
+            
+            if (imagesTransmitting > 0)
+            {
+                this.numImagesTransmitting.setText(
+                    Integer.toString(imagesTransmitting) + " file" + 
+                            ((imagesTransmitting != 1) ? "s" : "") 
+                            + " being copied."
+                ); 
+            }
+            else
+            {
+                this.numImagesTransmitting.setText("");
+            }
+
+            this.loaderLabelTransfer.setVisible(imagesTransmitting > 0);
         }
-        else
-        {
-            this.numImagesTransmitting.setText("");
-        }
-        
-        this.loaderLabelTransfer.setVisible(imagesTransmitting > 0);
-        //this.loaderLabel2.setVisible(thumbsTransmitting != 0);
     }
     
     /**
@@ -449,41 +429,47 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     @Override
     synchronized public void imageCaptureComplete(boolean captureOk, int remaining)
     {
+        int index = queueProgressBar.getMaximum() - remaining;
+        
         if (!captureOk)
         {
             this.m.emptyQueue();
-            JOptionPane.showMessageDialog(this, String.format("Shooting interrupted on frame %d.  Possible camera timeout - try reconnecting.", this.queueProgressBar.getMaximum() - remaining));
+            JOptionPane.showMessageDialog(this, 
+                String.format("Shooting interrupted on frame %d.  Possible camera timeout - try reconnecting.", index)
+            );
         }
-        else if (processing)
+        else if (this.m.isQueueProcessing())
         {
-            this.queueProgressBar.setValue(this.queueProgressBar.getMaximum() - remaining);
+            this.queueProgressBar.setValue(index);
+            
+            // Highlight next row
+            if (index < this.queueTable.getRowCount())
+            {
+                this.queueTable.setRowSelectionInterval(index, index);
+            }
+            else
+            {
+                this.queueTable.clearSelection();
+            }
+        }
+        else
+        {
+            this.restartDownloads();
         }
              
         endProcessing();
         updateBattery();
     }
     
-    synchronized private void processImageDownload(CameraImage i)
-    {
-        this.imagesTransmitting += 1;        
-        this.m.downloadImage(saveFilePath, i, false, this);
-        this.refreshTransmitting();
-    }
-    
     synchronized private void endProcessing()
     {
-        if (this.m.getQueueSize() == 0 && processing)
+        if (this.m.getQueueSize() == 0)
         {
             this.processQueueButton.setEnabled(true);
             this.queueProgressBar.setVisible(false);
-            this.processing = false;
-                        
-            // Start all downloading at the end
-            // TODO - delay until live view ends
-            while (!this.downloadTasks.isEmpty())
-            {
-                processImageDownload(this.downloadTasks.remove(0));
-            }
+            
+            this.m.getDownloadManager().processImageDownloadQueue(saveFilePath, this);
+            this.refreshTransmitting();
         }
     }
     
@@ -542,6 +528,21 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         }      
         
         restartLv();
+        restartDownloads();
+    }
+    
+    /**
+     * Ensures any pending downloads are processed
+     */
+    private void restartDownloads()
+    {
+        if (!this.m.isQueueProcessing())
+        {
+            this.m.getDownloadManager().processThumbDownloadQueue(null, this);
+            this.m.getDownloadManager().processImageDownloadQueue(saveFilePath, this);
+        }
+        
+        this.refreshTransmitting();
     }
     
     /**
@@ -560,9 +561,11 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         }
     }
     
+    /**
+     *  Attempt to automatically restart LV on reconnect
+     */
     private void restartLv()
     {
-        // Attempt to automatically restart LV on reconnect
         if (this.lv != null)
         {
             if (this.lv.isVisible())
@@ -595,6 +598,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             }
             
             restartLv();
+            restartDownloads();
         }
         else
         {
@@ -741,7 +745,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         viewFiles = new javax.swing.JButton();
         loaderLabelTransfer = new javax.swing.JLabel();
         numImagesTransmitting = new javax.swing.JLabel();
-        loaderLabelThumb = new javax.swing.JLabel();
         transferRawFiles = new javax.swing.JCheckBox();
         thumbnailArea = new javax.swing.JLabel();
         cameraNameLabel = new javax.swing.JLabel();
@@ -796,6 +799,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         editMenu = new javax.swing.JMenu();
         abortIntervalMenuItem = new javax.swing.JMenuItem();
         abortTransferMenuItem = new javax.swing.JMenuItem();
+        resumeDownloadsMenu = new javax.swing.JMenuItem();
         optionsMenu = new javax.swing.JMenu();
         transferThumbnails = new javax.swing.JCheckBoxMenuItem();
         autoReconnect = new javax.swing.JCheckBoxMenuItem();
@@ -857,13 +861,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         numImagesTransmitting.setMinimumSize(new java.awt.Dimension(180, 20));
         numImagesTransmitting.setPreferredSize(new java.awt.Dimension(180, 20));
 
-        loaderLabelThumb.setText("Spin");
-        loaderLabelThumb.addMouseListener(new java.awt.event.MouseAdapter() {
-            public void mouseClicked(java.awt.event.MouseEvent evt) {
-                loaderLabelThumbMouseClicked(evt);
-            }
-        });
-
         transferRawFiles.setText("Transfer RAW");
         transferRawFiles.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -879,21 +876,19 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 .addContainerGap()
                 .addGroup(jPanel8Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(jPanel8Layout.createSequentialGroup()
-                        .addComponent(transferFiles)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                        .addComponent(transferRawFiles)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 107, Short.MAX_VALUE)
-                        .addComponent(loaderLabelThumb)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(loaderLabelTransfer)
-                        .addGap(14, 14, 14))
-                    .addGroup(jPanel8Layout.createSequentialGroup()
                         .addComponent(selectFilePath)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(viewFiles)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                        .addComponent(numImagesTransmitting, javax.swing.GroupLayout.PREFERRED_SIZE, 188, javax.swing.GroupLayout.PREFERRED_SIZE)))
-                .addContainerGap())
+                        .addComponent(numImagesTransmitting, javax.swing.GroupLayout.PREFERRED_SIZE, 188, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                    .addGroup(jPanel8Layout.createSequentialGroup()
+                        .addComponent(transferFiles)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                        .addComponent(transferRawFiles)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addComponent(loaderLabelTransfer)
+                        .addGap(25, 25, 25))))
         );
         jPanel8Layout.setVerticalGroup(
             jPanel8Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -903,9 +898,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                     .addGroup(jPanel8Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                         .addComponent(transferFiles)
                         .addComponent(transferRawFiles))
-                    .addGroup(jPanel8Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                        .addComponent(loaderLabelTransfer)
-                        .addComponent(loaderLabelThumb)))
+                    .addComponent(loaderLabelTransfer))
                 .addGap(18, 18, 18)
                 .addGroup(jPanel8Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(selectFilePath)
@@ -1476,6 +1469,14 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         });
         editMenu.add(abortTransferMenuItem);
 
+        resumeDownloadsMenu.setText("Resume Interrupted Transfers");
+        resumeDownloadsMenu.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                resumeDownloadsMenuActionPerformed(evt);
+            }
+        });
+        editMenu.add(resumeDownloadsMenu);
+
         mainMenuBar.add(editMenu);
 
         optionsMenu.setText("Options");
@@ -1574,6 +1575,12 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 
         m.emptyQueue();
         
+        // Highlight first row
+        if (this.queueTable.getRowCount() > 0)
+        {
+            this.queueTable.setRowSelectionInterval(0, 0);
+        }
+        
         try
         {
             for (int r = 0; r < t.getRowCount(); r++)
@@ -1605,11 +1612,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             if (this.m.getQueueSize() != 0)
             {
                 this.processQueueButton.setEnabled(false);
-                //this.jButton12.setEnabled(false);
-                this.processing = true;
-                
                 this.queueProgressBar.setStringPainted(true);
-
                 this.queueProgressBar.setValue(0);
                 this.queueProgressBar.setMaximum(this.m.getQueueSize());
                 this.queueProgressBar.setVisible(true);
@@ -1646,6 +1649,9 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         }
     }//GEN-LAST:event_addQueueButtonActionPerformed
 
+    /**
+     * Deletes selected rows from the table
+     */
     private void deleteFromTable()
     {
         CameraSettingTableModel t = (CameraSettingTableModel) this.queueTable.getModel();
@@ -1966,10 +1972,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         JOptionPane.showMessageDialog(this, SW_NAME + " v"+VERSION_NUMBER+".\nProject page: https://github.com/PentaxForums");
     }//GEN-LAST:event_aboutMenuItemActionPerformed
 
-    private void loaderLabelThumbMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_loaderLabelThumbMouseClicked
-        // TODO add your handling code here:
-    }//GEN-LAST:event_loaderLabelThumbMouseClicked
-
     private void selectFilePathActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_selectFilePathActionPerformed
         JFileChooser f = new JFileChooser();
         f.setCurrentDirectory(new File(this.saveFilePath));
@@ -1994,7 +1996,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
 
     private void transferFilesActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_transferFilesActionPerformed
 
-        if (imagesTransmitting == 0)
+        if (this.m.getDownloadManager().getNumProcessing(false) == 0)
         {
             prefs.putBoolean("doTransferFiles", this.transferFiles.isSelected());
         }
@@ -2033,7 +2035,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
 
     private void transferRawFilesActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_transferRawFilesActionPerformed
         
-        if (imagesTransmitting == 0)
+        if (this.m.getDownloadManager().getNumProcessing(false) == 0)
         {
             prefs.putBoolean("doTransferRawFiles", this.transferRawFiles.isSelected());
         }
@@ -2042,11 +2044,9 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
 
     synchronized private void abortTransfer()
     {
-        if (imagesTransmitting != 0 || thumbsTransmitting != 0)
+        if (this.m.getDownloadManager().getNumProcessingAll() != 0)
         {
-            this.m.abortImageDownload(this);
-            this.imagesTransmitting = 0;
-            this.thumbsTransmitting = 0;
+            this.m.getDownloadManager().abortDownloading(this);
             refreshTransmitting();  
         }
     }
@@ -2104,7 +2104,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     }//GEN-LAST:event_abortTransferMenuItemActionPerformed
 
     private void abortIntervalMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_abortIntervalMenuItemActionPerformed
-        if (this.processing)
+        if (this.m.isQueueProcessing())
         {
             this.m.abortQueue();
             this.m.emptyQueue();
@@ -2147,6 +2147,10 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             sendSettingsToCamera();
         }
     }//GEN-LAST:event_dropDownStateChanged
+
+    private void resumeDownloadsMenuActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_resumeDownloadsMenuActionPerformed
+        restartDownloads();
+    }//GEN-LAST:event_resumeDownloadsMenuActionPerformed
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JRadioButton Seconds;
@@ -2192,7 +2196,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private javax.swing.JPanel jPanel8;
     private javax.swing.JScrollPane jScrollPane2;
     private javax.swing.JLabel loaderLabelPhoto;
-    private javax.swing.JLabel loaderLabelThumb;
     private javax.swing.JLabel loaderLabelTransfer;
     private javax.swing.JMenuBar mainMenuBar;
     private javax.swing.JRadioButton minutes;
@@ -2205,6 +2208,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private javax.swing.JTable queueTable;
     private javax.swing.JButton refreshButton;
     private javax.swing.JMenuItem restartMenuItem;
+    private javax.swing.JMenuItem resumeDownloadsMenu;
     private javax.swing.JMenuItem saveMenuItem;
     private javax.swing.JLabel secondsTextLabel;
     private javax.swing.JButton selectFilePath;

@@ -41,6 +41,7 @@ import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -62,12 +63,10 @@ public class CameraConnectionModel
     private final Queue<FuturePhoto> imageQueue;
     private final Map<Capture, Boolean> captureState;
     private final List<CameraImage> capturedImages;
-    private final Map<CameraImage, File> downloadedImages;
-    private final Map<CameraImage, File> downloadedThumbs;
 
     private boolean queueLocked;
-    private ExecutorService pool;
     private ScheduledExecutorService capturePool;
+    private ImageDownloadManager dm;
     
     // Time to re-check status in blocked capture thread (ms)
     public static final int WAIT_INTERVAL = 250;
@@ -80,10 +79,7 @@ public class CameraConnectionModel
     
     // Connection retry time (ms)
     public static final int STARTUP_RETRY = 5000;
-    
-    // API v1.1 only reliably supports a single concurrent download
-    public static final int NUM_DOWNLOAD_THREADS = 1;
-    
+        
     /**
      * Creates the model with empty state 
      */
@@ -91,12 +87,15 @@ public class CameraConnectionModel
     {
         this.imageQueue = new LinkedList<>();
         this.capturedImages = new ArrayList<>();
-        this.downloadedImages = new HashMap<>();
-        this.downloadedThumbs = new HashMap<>();
         this.captureState = new HashMap<>();
         this.queueLocked = false;
-        this.pool = Executors.newFixedThreadPool(NUM_DOWNLOAD_THREADS);
         this.capturePool = Executors.newScheduledThreadPool(1);
+        this.dm = new ImageDownloadManager(this);
+    }
+    
+    public ImageDownloadManager getDownloadManager()
+    {
+        return dm;
     }
         
     /**
@@ -123,26 +122,6 @@ public class CameraConnectionModel
     }
     
     /**
-     * Gets the image file corresponding to a downloaded camera image
-     * @param i
-     * @return 
-     */
-    public File getDownloadedImage(CameraImage i)
-    {
-        return this.downloadedImages.get(i);
-    }
-    
-    /**
-     * Gets the thumbnail corresponding to a downloaded camera image
-     * @param i
-     * @return 
-     */
-    public File getDownloadedThumb(CameraImage i)
-    {
-        return this.downloadedThumbs.get(i);
-    }
-    
-    /**
      * Gets all images currently on the camera.  Not downloaded unless download function is called.
      * @return 
      * @throws pentaxwifi.CameraException 
@@ -157,117 +136,6 @@ public class CameraConnectionModel
         {
             throw new CameraException("Not connected");
         }
-    }
-    
-    /**
-     * Aborts queued image downloads
-     * @param l 
-     */
-    synchronized public void abortImageDownload(CaptureEventListener l)
-    {
-        this.pool.shutdownNow();
-        
-        if (l != null)
-        {
-            l.imageDownloaded(null, null, false);
-        }
-        
-        this.pool = Executors.newFixedThreadPool(NUM_DOWNLOAD_THREADS);
-    }
-        
-    /**
-     * Asynchronously downloads image data
-     * @param savePath
-     * @param i
-     * @param isThumbnail 
-     * @param l 
-     */
-    public void downloadImage(String savePath, CameraImage i, boolean isThumbnail, CaptureEventListener l)
-    {        
-        this.pool.submit(
-            new Thread(() -> 
-            {
-                FileOutputStream outputStream = null;
-                File f = null;
-                boolean error = false;
-
-                try
-                {
-                    if (savePath == null)
-                    {
-                        f = File.createTempFile(isThumbnail ? "thumb" : "image", i.getName());
-                    }
-                    else
-                    {
-                        f = new File(savePath + "/" + i.getName());
-                    }
-                    
-                    // TODO - ensure these are properly closed if thread interrupted
-                    
-                    Response response;
-                    
-                    outputStream = new FileOutputStream(f);
-                    
-                    if (isThumbnail)
-                    {
-                        response = i.getThumbnail(outputStream);
-                        downloadedThumbs.put(i, f);
-                        
-                        if (!response.getErrors().isEmpty())
-                        {
-                            throw new IOException("Failed to download file: " + response.getErrors().toString());
-                        }
-                    }
-                    else
-                    {
-                        response = i.getData(outputStream);
-                        downloadedImages.put(i, f);
-                        
-                        if (!response.getErrors().isEmpty())
-                        {
-                            throw new IOException("Failed to download file: " + response.getErrors().toString());
-                        }
-                    }
-
-                    if (l != null)
-                    {
-                        l.imageDownloaded(i, f, isThumbnail);    
-                    }
-                }
-                catch (IOException e)
-                {                    
-                    if (l != null)
-                    {
-                        l.imageDownloaded(i, null, isThumbnail);    
-                    }
-                    
-                    error = true;
-                }
-                finally
-                {
-                    if (outputStream != null)
-                    {
-                        try
-                        {
-                            outputStream.close();
-                        }
-                        catch (IOException e)
-                        {
-                            //do nothing
-                        }
-                    }
-                    
-                    // On error, delete the incomplete file after stream is closed
-                    if (error)
-                    {
-                        if (f != null)
-                        {                            
-                            f.delete();
-                        }
-                    }
-                }
-            })
-        );
     }
     
     /**
@@ -412,7 +280,7 @@ public class CameraConnectionModel
      * Checks the status of the image queue
      * @return 
      */
-    synchronized public boolean queueProcessing()
+    synchronized public boolean isQueueProcessing()
     {
         return this.queueLocked;
     }
@@ -664,6 +532,16 @@ public class CameraConnectionModel
         {
             throw new CameraException("Failed to detect camera.");
         }
+    }
+    
+    /**
+     * Gets the number of images currently being downloaded
+     * @return 
+     */
+    public int getQueueRemaining()
+    {
+        return 
+            ((ThreadPoolExecutor) this.capturePool).getQueue().size();
     }
         
     /**
