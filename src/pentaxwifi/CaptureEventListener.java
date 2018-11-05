@@ -43,6 +43,7 @@ public interface CaptureEventListener
     
     /**
      * Pushes the latest live view image
+     * @param img
      */
     public void liveViewImageUpdated(BufferedImage img);
 }

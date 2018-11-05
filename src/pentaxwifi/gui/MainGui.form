@@ -386,6 +386,7 @@
             </Component>
             <Component class="javax.swing.JLabel" name="numImagesTransmitting">
               <Properties>
+                <Property name="horizontalAlignment" type="int" value="4"/>
                 <Property name="text" type="java.lang.String" value="-1"/>
                 <Property name="toolTipText" type="java.lang.String" value=""/>
                 <Property name="focusable" type="boolean" value="false"/>

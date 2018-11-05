@@ -77,10 +77,16 @@ public class CameraConnectionModel
     public static final int MIN_TIMEOUT = 20000;
     
     // Keepalive interval (ms)
-    public static final int KEEPALIVE = 20000;
+    public static final int KEEPALIVE = 45000;
     
     // Connection retry time (ms)
     public static final int STARTUP_RETRY = 5000;
+        
+    // Camera status constants
+    public static final int CAMERA_OK = 1;
+    public static final int CAMERA_BUSY = 2;
+    public static final int CAMERA_UNKNOWN = 3;
+    public static final int CAMERA_DISCONNECTED = 4;
         
     /**
      * Creates the model with empty state 
@@ -95,9 +101,37 @@ public class CameraConnectionModel
         this.dm = new ImageDownloadManager(this);
     }
     
+    /**
+     * Returns a reference to the image download manager
+     * @return 
+     */
     public ImageDownloadManager getDownloadManager()
     {
         return dm;
+    }
+    
+    /**
+     * Attempts to determine the camera's current status
+     * @return 
+     */
+    public int getCameraStatus()
+    {
+        if (!this.isConnected())
+        {
+            return CAMERA_DISCONNECTED;
+        }
+        
+        if (null == this.cam)
+        {
+            return CAMERA_UNKNOWN;
+        }
+        
+        if (null == this.cam.getStatus().getCurrentCapture() || this.cam.getStatus().getCurrentCapture().getState() == CaptureState.COMPLETE)
+        {
+            return CAMERA_OK;
+        }
+        
+        return CAMERA_BUSY;
     }
         
     /**
@@ -555,10 +589,12 @@ public class CameraConnectionModel
                 }
                 catch (CameraException e)
                 {
+                    // TODO - is this appropriate?
+                    System.out.println("Keepalive raised exception: " + e.toString());
                     disconnect();
                     exec.shutdownNow();
                 }
-            }, 0, KEEPALIVE, TimeUnit.SECONDS);
+            }, 0, KEEPALIVE, TimeUnit.MILLISECONDS);
         }    
         
         if (!isConnected())
@@ -585,7 +621,7 @@ public class CameraConnectionModel
         if (isConnected())
         {
             cam.disconnect(DeviceInterface.WLAN);
-            cam = null;
+            cam = null; 
         }
     }
     

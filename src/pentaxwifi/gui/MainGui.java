@@ -6,6 +6,7 @@
 package pentaxwifi.gui;
 
 import com.ricoh.camera.sdk.wireless.api.CameraImage;
+import com.ricoh.camera.sdk.wireless.api.CaptureState;
 import com.ricoh.camera.sdk.wireless.api.ImageFormat;
 import com.ricoh.camera.sdk.wireless.api.setting.capture.CaptureSetting;
 import com.ricoh.camera.sdk.wireless.api.setting.capture.ExposureCompensation;
@@ -49,6 +50,7 @@ import javax.swing.JPopupMenu;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.TableModel;
 import pentaxwifi.CameraConnectionModel;
+import static pentaxwifi.CameraConnectionModel.KEEPALIVE;
 import pentaxwifi.CameraException;
 import pentaxwifi.CaptureEventListener;
 import pentaxwifi.gui.helpers.ComboItem;
@@ -92,6 +94,9 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     
     // Default empty dropdown entry
     public static final ComboItem DEFAULT_COMBO_ITEM = new ComboItem("---", null);
+    
+    // Delay between refresh of camera status (ms) (does not block)
+    public static final int STATUS_REFRESH = 500;
     
     // Version number
     public static final String VERSION_NUMBER = "1.0.0 Beta 6";
@@ -240,6 +245,29 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         
         popupMenu2.add(focusItem);
         captureButton.setComponentPopupMenu(popupMenu2);
+        
+        // Camera status checker
+        (Executors.newSingleThreadScheduledExecutor()).scheduleAtFixedRate(() -> {
+
+            int cameraStatus = m.getCameraStatus();
+
+            switch (cameraStatus)
+            {
+                case CameraConnectionModel.CAMERA_OK:
+                    setTitle(SW_NAME + " " + "(Ready)");
+                    break;
+                case CameraConnectionModel.CAMERA_BUSY:
+                    setTitle(SW_NAME + " " + "(Camera Busy)");
+                    break;
+                case CameraConnectionModel.CAMERA_DISCONNECTED:
+                    setTitle(SW_NAME + " " + "(Disconnected)");
+                    break;
+                case CameraConnectionModel.CAMERA_UNKNOWN:
+                default:
+                    setTitle(SW_NAME + " " + "(Status Unknown)");
+                    break;
+            }
+        }, 0, STATUS_REFRESH, TimeUnit.MILLISECONDS);
     }
    
     /**
@@ -465,6 +493,9 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         updateBattery();
     }
     
+    /**
+     * Updates status of queue progress bar
+     */
     synchronized private void endProcessing()
     {
         if (this.m.isQueueEmpty() || !this.m.isQueueProcessing())
@@ -477,6 +508,9 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         }
     }
     
+    /**
+     * Automatically tries to reestablish a connection to the camera
+     */
     synchronized private void autoReconnect()
     {
         JOptionPane pane = new JOptionPane("Please wait, attempting to automatically reconnect.  Exit program instead?",  JOptionPane.PLAIN_MESSAGE, JOptionPane.DEFAULT_OPTION);
@@ -494,6 +528,10 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                     try
                     {
                         m.connect();
+                        try
+                        {
+                            Thread.sleep(100);
+                        } catch (InterruptedException ex) { }
                     } 
                     catch (CameraException ex)
                     {
@@ -859,6 +897,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
 
         loaderLabelTransfer.setText("Spin");
 
+        numImagesTransmitting.setHorizontalAlignment(javax.swing.SwingConstants.RIGHT);
         numImagesTransmitting.setText("-1");
         numImagesTransmitting.setToolTipText("");
         numImagesTransmitting.setFocusable(false);
@@ -1847,8 +1886,9 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         // Delay image capture if requested
         if (getDelaySeconds() > 0)
         {
-            int result = JOptionPane.showConfirmDialog(parent, 
-                String.format("Capture will automatically start after %d seconds.  Cancel via menu.  Proceed?", getDelaySeconds())
+            int result = JOptionPane.showConfirmDialog(this, 
+                String.format("Capture will automatically start after %d seconds.  Cancel via menu.  Proceed?", getDelaySeconds()),
+                "Self Timer", JOptionPane.YES_NO_OPTION
             );   
 
             if (result != JOptionPane.YES_OPTION)
@@ -1997,7 +2037,22 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         // Tell the camera we're disconnecting
         this.m.disconnect();
         
-        System.exit(0);
+        (new Thread(){
+            @Override
+            public void run()
+            {
+                // Delay exit slightly if the call blocked
+                if (m.isConnected())
+                {
+                    try
+                    {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ex) { }
+                }
+                
+                System.exit(0);
+            }
+        }).start();
     }
     
     private void formWindowClosing(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowClosing
