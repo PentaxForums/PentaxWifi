@@ -160,7 +160,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         {
             ((CameraSettingTableModel) this.queueTable.getModel()).removeRow(0);
         }
-        
+                
         // Enable right-click delete in table
         final JPopupMenu popupMenu = new JPopupMenu();
         JMenuItem deleteItem = new JMenuItem("Delete Selected");
@@ -168,6 +168,19 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             deleteFromTable();
         });
         popupMenu.add(deleteItem);
+        
+        JMenuItem countItem = new JMenuItem("Show Queue Size");
+        countItem.addActionListener((ActionEvent e) -> {
+            showTableSize();
+        });
+        popupMenu.add(countItem);
+        
+        JMenuItem duplicateItem = new JMenuItem("Dupliate Selected");
+        duplicateItem.addActionListener((ActionEvent e) -> {
+            duplicateInTable();
+        });
+        popupMenu.add(duplicateItem);
+        
         queueTable.setComponentPopupMenu(popupMenu);
         
          // Load table contents
@@ -223,6 +236,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 addQueueButtonActionPerformed(null); 
             }
         });
+                
         popupMenu1.add(menuItem1);
         popupMenu1.add(menuItem2);
         popupMenu1.add(menuItem4);
@@ -1732,6 +1746,50 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             while (this.queueTable.getSelectedRow() >= 0)
             {
                 t.removeRow(this.queueTable.getSelectedRow());
+            }
+        }
+        // Cannot delete if the queue is not empty
+        else
+        {
+            JOptionPane.showMessageDialog(this, String.format("There are %d pending captures in the queue.\n\nProcess queue or abort via Edit menu (ensure Reset option is selected in the Options Menu).", this.m.getQueueSize()));
+        }
+    }
+    
+    /**
+     * Displays the size of the image queue
+     */
+    private void showTableSize()
+    {
+        JOptionPane.showMessageDialog(this, queueTable.getModel().getRowCount() + " photos", "Capture Queue Size", JOptionPane.OK_OPTION);
+    }
+    
+    /**
+     * Deletes selected rows from the table
+     */
+    private void duplicateInTable()
+    {
+        if (this.m.isQueueEmpty())
+        {
+            CameraSettingTableModel t = (CameraSettingTableModel) this.queueTable.getModel();
+            
+            try
+            {
+                if (this.queueTable.getSelectedRows().length > 0)
+                {
+                    int numCopies = Math.abs(Integer.parseInt(JOptionPane.showInputDialog(this, "Number of copies?", 1)));
+
+                    for (int i = 0; i < numCopies; i++)
+                    {
+                        for (int row : this.queueTable.getSelectedRows())
+                        {
+                            t.addRow((Vector) t.getDataVector().elementAt(row));
+                        }
+                    }
+                }
+            }
+            catch (NumberFormatException n)
+            {
+
             }
         }
         // Cannot delete if the queue is not empty
