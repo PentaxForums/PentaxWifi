@@ -99,7 +99,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     public static final int STATUS_REFRESH = 500;
     
     // Version number
-    public static final String VERSION_NUMBER = "1.0.0 Beta 6";
+    public static final String VERSION_NUMBER = "1.0.0 Beta 7";
     public static final String SW_NAME = "Pentax Wi-Fi Tether by PentaxForums.com";
     
     /**

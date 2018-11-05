@@ -307,6 +307,8 @@ public class ImageDownloadManager
                     if (savePath == null)
                     {
                         f = File.createTempFile(isThumbnail ? "thumb" : "image", i.getName());
+                        
+                        f.deleteOnExit();
                     }
                     else
                     {
