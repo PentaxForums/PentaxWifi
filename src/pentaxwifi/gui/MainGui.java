@@ -79,7 +79,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private Boolean doClearOnAbort;
     private Boolean doResetCaptureQueue;
     private ScheduledExecutorService pool;
-    private File lastThumb;
     private LiveViewGui lv;
     private Boolean initializing;
     
@@ -426,9 +425,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                     this.thumbnailArea.setIcon(new ImageIcon(myPicture));
                     
                     // Delete the temporary thumbnail file
-                    this.m.getDownloadManager().getDownloadedThumb(image).delete();   
-                    
-                    this.lastThumb = f;
+                    this.m.getDownloadManager().getDownloadedThumb(image).delete();                       
                 }
                 catch (IOException ex)
                 {
@@ -2069,11 +2066,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         }
         
         dispose();
-        
-        if (this.lastThumb != null)
-        {
-            this.lastThumb.delete();
-        }
         
         try
         {
