@@ -64,11 +64,13 @@ public class CameraConnectionModel
     private final Deque<FuturePhoto> imageQueue;
     private final Map<Capture, Boolean> captureState;
     private final List<CameraImage> capturedImages;
-    private FuturePhoto p;
 
     private boolean queueLocked;
+    private final ImageDownloadManager dm;
     private ScheduledExecutorService capturePool;
-    private ImageDownloadManager dm;
+    
+    // Track the most recently queued photo so we can roll back in case of failure
+    private FuturePhoto p;
     
     // Time to re-check status in blocked capture thread (ms)
     public static final int WAIT_INTERVAL = 250;
