@@ -55,10 +55,10 @@ public class CameraConnectionModel
 {
     private CameraDevice cam;
     
-    private ShutterSpeed tv;
-    private FNumber av;
-    private ExposureCompensation ev;
-    private ISO iso;
+    private CaptureSetting tv;
+    private CaptureSetting av;
+    private CaptureSetting ev;
+    private CaptureSetting iso;
     // TODO - also track other state supported by the SDK, such as WB and CI
 
     private final Deque<FuturePhoto> imageQueue;
@@ -241,7 +241,7 @@ public class CameraConnectionModel
      * @param ss
      * @return 
      */
-    private int parseShutterSpeed(ShutterSpeed ss)
+    private int parseShutterSpeed(CaptureSetting ss)
     {
         String val = ss.getValue().toString();
         
@@ -406,20 +406,20 @@ public class CameraConnectionModel
      * @throws CameraException 
      */
     public void refreshCurrentSettings() throws CameraException
-    {
-        tv = new ShutterSpeed();
-        ev  = new ExposureCompensation();
-        av = new FNumber();
-        iso = new ISO();
+    {       
+        List<CaptureSetting> l = Arrays.asList(new ShutterSpeed(), new ExposureCompensation(), new FNumber(), new ISO());
         
-        Response r =
-            cam.getCaptureSettings(
-                Arrays.asList(tv, ev, av, iso));
+        Response r = cam.getCaptureSettings(l);
 
         if (!r.getErrors().isEmpty())
         {
             throw new CameraException(r.getErrors().toString());
         } 
+        
+        this.tv = l.get(0);
+        this.ev = l.get(1);
+        this.av = l.get(2);
+        this.iso = l.get(3);
     }
     
     /**
@@ -915,22 +915,22 @@ public class CameraConnectionModel
     
     // Individual settings getters
     
-    public ShutterSpeed getTv()
+    public CaptureSetting getTv()
     {
         return tv;
     }
     
-    public ExposureCompensation getEv()
+    public CaptureSetting getEv()
     {
         return ev;
     }
     
-    public FNumber getAv()
+    public CaptureSetting getAv()
     {
         return av;
     }
     
-    public ISO getISO()
+    public CaptureSetting getISO()
     {
         return iso;
     }
