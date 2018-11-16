@@ -10,6 +10,8 @@ import com.ricoh.camera.sdk.wireless.api.CameraEventListener;
 import com.ricoh.camera.sdk.wireless.api.CameraImage;
 import com.ricoh.camera.sdk.wireless.api.CameraStatus;
 import com.ricoh.camera.sdk.wireless.api.CameraStorage;
+import com.ricoh.camera.sdk.wireless.api.Capture;
+import com.ricoh.camera.sdk.wireless.api.CaptureState;
 import com.ricoh.camera.sdk.wireless.api.DeviceInterface;
 import com.ricoh.camera.sdk.wireless.api.response.Response;
 import com.ricoh.camera.sdk.wireless.api.response.Result;
@@ -18,6 +20,7 @@ import com.ricoh.camera.sdk.wireless.api.response.ErrorCode;
 
 import com.ricoh.camera.sdk.wireless.api.response.StartCaptureResponse;
 import com.ricoh.camera.sdk.wireless.api.setting.camera.CameraDeviceSetting;
+import com.ricoh.camera.sdk.wireless.api.setting.capture.CaptureMethod;
 import com.ricoh.camera.sdk.wireless.api.setting.capture.CaptureSetting;
 import com.ricoh.camera.sdk.wireless.api.setting.capture.ExposureCompensation;
 import com.ricoh.camera.sdk.wireless.api.setting.capture.FNumber;
@@ -28,9 +31,16 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import static pentaxwifi.CameraConnectionModel.KEEPALIVE;
+import pentaxwifi.CameraException;
 
 /**
  *
@@ -45,7 +55,18 @@ public class USBCamera implements CameraDevice
     private String manu;
     private int index;
     private boolean connected;
+    private List<CameraEventListener> listeners;
+    private static final int POLL_FOR_EVENTS = 1000;
     
+    /**
+     *
+     * @param index
+     * @param iface
+     * @param manu
+     * @param model
+     * @param serial
+     * @param fw
+     */
     public USBCamera(int index, USBInterface iface, String manu, String model, String serial, String fw)
     {
         this.index = index;
@@ -55,6 +76,17 @@ public class USBCamera implements CameraDevice
         this.serial = serial;
         this.fw = fw;
         this.connected = false;
+        this.listeners = new LinkedList<>();
+        
+        // Start event polling
+        ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor();
+        exec.scheduleAtFixedRate(() -> {
+
+                if (this.iface.isConnected())
+                {
+                    this.iface.processCallBacks(this, listeners);
+                }
+        }, 0, POLL_FOR_EVENTS, TimeUnit.MILLISECONDS);
     }
         
     @Override
@@ -83,17 +115,17 @@ public class USBCamera implements CameraDevice
 
     @Override
     public void addEventListener(CameraEventListener cl) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        this.listeners.add(cl);
     }
 
     @Override
     public void removeEventListener(CameraEventListener cl) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        this.listeners.remove(cl);
     }
 
     @Override
     public CameraEventListener[] getEventListeners() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return this.listeners.toArray(new CameraEventListener[this.listeners.size()]);
     }
 
     @Override
@@ -102,8 +134,9 @@ public class USBCamera implements CameraDevice
     }
 
     @Override
-    public CameraStatus getStatus() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    public CameraStatus getStatus()
+    {
+        return this.iface.getStatus();
     }
 
     @Override

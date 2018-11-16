@@ -6,15 +6,15 @@
 package pentaxwifi.usb;
 
 import com.ricoh.camera.sdk.wireless.api.setting.capture.CaptureSetting;
+import com.ricoh.camera.sdk.wireless.api.setting.capture.ExposureCompensation;
 import com.ricoh.camera.sdk.wireless.api.setting.capture.FNumber;
+import com.ricoh.camera.sdk.wireless.api.setting.capture.ISO;
 import com.ricoh.camera.sdk.wireless.api.setting.capture.ShutterSpeed;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-// TODO - all checks of CaptureSetting.class must be updated in CameraConnectionModel
 
 /**
  * Generic class for instantiating FNumbers, ShutterSpeeds, etc. from a string
@@ -25,6 +25,14 @@ public class USBCameraSetting <T extends CaptureSetting> extends CaptureSetting
 {
     public static final String LIST_DELIM = "\\|";
     
+    /**
+     * Returns a USBCameraSetting of a specific type, with the passed settings
+     * @param <T>
+     * @param current
+     * @param available
+     * @param cls
+     * @return 
+     */
     public static <T extends CaptureSetting> USBCameraSetting<T> getUSBSetting(String current, String available, Class<T> cls)
     {
         // Get current setting
@@ -81,6 +89,8 @@ public class USBCameraSetting <T extends CaptureSetting> extends CaptureSetting
     {
         System.out.println(getUSBSetting("2.8", "1.2|22|4.0|8.0", FNumber.class).toStringDebug());
         System.out.println(getUSBSetting("1/100", "1/100|1/250|20|30|1.5", ShutterSpeed.class).toStringDebug());
+        System.out.println(getUSBSetting("0.3", "-0.7|1.0|0.0|0.3", ExposureCompensation.class).toStringDebug());
+        System.out.println(getUSBSetting("100", "100|200|1600|3200|12800", ISO.class).toStringDebug());
     }
     
     /**
@@ -109,16 +119,12 @@ public class USBCameraSetting <T extends CaptureSetting> extends CaptureSetting
         for (Field f : staticFields)
         {
             T test;
+            
             try
             {
                 test = (T) f.get(cls);
             }
-            catch (IllegalArgumentException ex)
-            {
-                Logger.getLogger(USBCameraSetting.class.getName()).log(Level.SEVERE, null, ex);
-                return null;
-            }
-            catch (IllegalAccessException ex)
+            catch (IllegalArgumentException | IllegalAccessException ex)
             {
                 Logger.getLogger(USBCameraSetting.class.getName()).log(Level.SEVERE, null, ex);
                 return null;

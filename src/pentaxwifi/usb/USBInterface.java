@@ -6,6 +6,8 @@
 package pentaxwifi.usb;
 
 import com.ricoh.camera.sdk.wireless.api.CameraDevice;
+import com.ricoh.camera.sdk.wireless.api.CameraEventListener;
+import com.ricoh.camera.sdk.wireless.api.CameraStatus;
 import com.ricoh.camera.sdk.wireless.api.response.StartCaptureResponse;
 import com.ricoh.camera.sdk.wireless.api.setting.capture.CaptureSetting;
 import java.util.List;
@@ -33,4 +35,10 @@ interface USBInterface
     public CaptureSetting getSetting(CaptureSetting s);
     
     public boolean setSetting(CaptureSetting s);
+    
+    public int getNumEvents();
+                
+    public void processCallBacks(CameraDevice c, List<CameraEventListener> l);
+
+    public CameraStatus getStatus();
 }

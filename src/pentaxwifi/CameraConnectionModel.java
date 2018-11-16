@@ -46,6 +46,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import pentaxwifi.usb.RicohUsbSdkBridge;
 
 /**
  * Model for camera connections through the Pentax Wi-Fi SDK
@@ -521,8 +522,11 @@ public class CameraConnectionModel
     {
         disconnect();
         
-        List<CameraDevice> detectedDevices =
-            CameraDeviceDetector.detect(DeviceInterface.WLAN);
+        /*List<CameraDevice> detectedDevices =
+            CameraDeviceDetector.detect(DeviceInterface.WLAN);*/
+        
+        RicohUsbSdkBridge br = new RicohUsbSdkBridge();
+        List<CameraDevice> detectedDevices = br.detectDevices();
         
         if (detectedDevices.isEmpty() == false)
         {

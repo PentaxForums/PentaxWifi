@@ -7,11 +7,18 @@ package pentaxwifi.usb;
 
 import com.ricoh.camera.sdk.wireless.api.CameraDevice;
 import com.ricoh.camera.sdk.wireless.api.CameraDeviceDetector;
+import com.ricoh.camera.sdk.wireless.api.CameraEventListener;
+import com.ricoh.camera.sdk.wireless.api.CameraImage;
+import com.ricoh.camera.sdk.wireless.api.CameraStatus;
+import com.ricoh.camera.sdk.wireless.api.CameraStorage;
 import com.ricoh.camera.sdk.wireless.api.Capture;
 import com.ricoh.camera.sdk.wireless.api.CaptureState;
+import com.ricoh.camera.sdk.wireless.api.ImageFormat;
+import com.ricoh.camera.sdk.wireless.api.ImageType;
 import com.ricoh.camera.sdk.wireless.api.response.Result;
 import com.ricoh.camera.sdk.wireless.api.response.Error;
 import com.ricoh.camera.sdk.wireless.api.response.ErrorCode;
+import com.ricoh.camera.sdk.wireless.api.response.Response;
 
 import com.ricoh.camera.sdk.wireless.api.response.StartCaptureResponse;
 import com.ricoh.camera.sdk.wireless.api.setting.capture.CaptureMethod;
@@ -21,16 +28,22 @@ import com.ricoh.camera.sdk.wireless.api.setting.capture.FNumber;
 import com.ricoh.camera.sdk.wireless.api.setting.capture.ISO;
 import com.ricoh.camera.sdk.wireless.api.setting.capture.ShutterSpeed;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.Date; 
+import java.text.SimpleDateFormat; 
 
 /**
  *
@@ -47,6 +60,9 @@ public final class RicohUsbSdkBridge implements USBInterface
     public static final String GET_DEVICE_INFO = "0";
     public static final String CONNECT = "1";
     public static final String CAPTURE = "2";
+    
+    public static final String GET_STATUS = "5";
+    
     public static final String GET_APERTURE = "9";
     public static final String SET_APERTURE = "10";
     
@@ -59,6 +75,11 @@ public final class RicohUsbSdkBridge implements USBInterface
     public static final String GET_SHUTTER_SPEED = "18";
     public static final String SET_SHUTTER_SPEED = "19";  
     
+    public static final String GET_NUM_EVENTS = "1000";
+    public static final String GET_NEXT_EVENT = "1001";
+
+    public static final String GET_THUMBNAIL = "2000";
+    public static final String GET_IMAGE = "2001";
     
     public static final String DISCONNECT = "90";
 
@@ -136,7 +157,7 @@ public final class RicohUsbSdkBridge implements USBInterface
 
     }
     
-    synchronized private NetworkMessage sendCommand(String c)
+    synchronized public NetworkMessage sendCommand(String c)
     {
         if (!"".equals(c))
         {
@@ -148,6 +169,40 @@ public final class RicohUsbSdkBridge implements USBInterface
         NetworkMessage nm = new NetworkMessage(readUntilChar(in, NetworkMessage.getMessageDelim()));
         
         return nm;
+    }
+    
+    @Override
+    public CameraStatus getStatus()
+    {
+        NetworkMessage nm = this.sendCommand(GET_STATUS);
+        
+        return new CameraStatus() {
+            @Override
+            public int getBatteryLevel() {
+                return Integer.parseInt(nm.getKey("BatteryLevel"));
+            }
+
+            @Override
+            public Capture getCurrentCapture() {
+                
+                return new Capture() {
+                    @Override
+                    public String getId() {
+                        return "0";
+                    }
+
+                    @Override
+                    public CaptureState getState() {
+                        return CaptureState.COMPLETE;
+                    }
+
+                    @Override
+                    public CaptureMethod getMethod() {
+                        return CaptureMethod.STILL_IMAGE;
+                    }
+                };                
+            }
+        };        
     }
         
     @Override
@@ -182,7 +237,7 @@ public final class RicohUsbSdkBridge implements USBInterface
                                 nm.getKey("Manufacturer" + Integer.toString(i)),
                                 nm.getKey("Model" + Integer.toString(i)),
                                 nm.getKey("Serial Number" + Integer.toString(i)),
-                                nm.getKey("Firmware" + Integer.toString(i))
+                                nm.getKey("Firmware Version" + Integer.toString(i))
                         )
                     );
                 }
@@ -190,6 +245,218 @@ public final class RicohUsbSdkBridge implements USBInterface
         }
         
         return out;
+    }
+    
+    @Override 
+    public int getNumEvents()
+    {
+        NetworkMessage nm = this.sendCommand(GET_NUM_EVENTS);
+        
+        if (!nm.hasError())
+        {
+            return Integer.parseInt(nm.getKey("numEvents"));
+        }
+        
+        return 0;
+    }
+    
+    @Override
+    public void processCallBacks(CameraDevice c, List<CameraEventListener> l)
+    {
+        NetworkMessage nm = this.sendCommand(GET_NEXT_EVENT);
+        
+        if (!nm.hasError())
+        {
+            String eventName = nm.getKey("Event");
+            
+            l.forEach((CameraEventListener cel) ->
+            {            
+                if (null != eventName)
+                {
+                    switch (eventName)
+                    {
+                        case "deviceDisconnected":
+                            
+                            (new Thread (() -> {
+                                cel.deviceDisconnected(c);
+                            })).start();
+                            break;
+                            
+                        // TODO - maybe fire a callback for this
+                        case "captureSettingsChanged":
+                            break;
+                            
+                        case "imageStored":
+                            
+                            final RicohUsbSdkBridge br = this;
+                            
+                            (new Thread (() -> {
+                                cel.imageStored(c, new CameraImage() {
+                                    @Override
+                                    public String getName()
+                                    {
+                                       return nm.getKey("Name");
+                                    }
+
+                                    @Override
+                                    public ImageType getType()
+                                    {
+                                        return "StillImage".equals(nm.getKey("Type")) ? ImageType.STILL_IMAGE : ImageType.MOVIE;
+                                    }
+
+                                    @Override
+                                    public ImageFormat getFormat()
+                                    {    
+                                        String format = nm.getKey("Format");
+                                        
+                                        if ("DNG".equals(format))
+                                        {
+                                            return ImageFormat.DNG;
+                                        }
+                                        else if ("JPEG".equals(format))
+                                        {
+                                            return ImageFormat.JPEG;
+                                        }
+                                        else if ("AVI".equals(format))
+                                        {
+                                            return ImageFormat.AVI;
+                                        }
+                                        else if ("MP4".equals(format))
+                                        {
+                                            return ImageFormat.MP4;
+                                        }
+                                        else if ("PEF".equals(format))
+                                        {
+                                            return ImageFormat.PEF;
+                                        }
+                                        else if ("DPOF".equals(format))
+                                        {
+                                            return ImageFormat.DPOF;
+                                        }
+                                        else if ("TIFF".equals(format))
+                                        {
+                                            return ImageFormat.TIFF;
+                                        }
+                                        else
+                                        {
+                                            return ImageFormat.UNKNOWN;
+                                        }                                        
+                                    }
+
+                                    @Override
+                                    public Date getDateTime()
+                                    {
+                                        Date d = new Date();
+                                        
+                                        d.setTime(Integer.parseInt(nm.getKey("Date")) * 1000);
+                                       
+                                        return d;
+                                    }
+
+                                    @Override
+                                    public boolean hasThumbnail()
+                                    {
+                                        return "1".equals(nm.getKey("HasThumbnail"));  
+                                    }
+
+                                    @Override
+                                    public CameraStorage getStorage() {
+                                        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                                    }
+
+                                    @Override
+                                    public Response getData(OutputStream out) throws IOException
+                                    {   
+                                        NetworkMessage nm2 = br.sendCommand(GET_IMAGE + "\n" + nm.getKey("ID"));
+                                        
+                                        if (!nm2.hasError())
+                                        {
+                                            String filePath = nm2.getKey("filePath");
+                                            
+                                            File f = new File(filePath);
+                                            Files.copy(f.toPath(), out);
+                                            f.delete();
+    
+                                            return new Response(Result.OK);
+                                        }
+                                        else
+                                        {
+                                             return new Response(
+                                                Result.ERROR,
+                                                new Error(ErrorCode.IMAGE_NOT_FOUND, "Image download error.")
+                                            );
+                                        }                                        
+                                    }
+
+                                    @Override
+                                    public Response getThumbnail(OutputStream out) throws IOException
+                                    {
+                                        NetworkMessage nm2 = br.sendCommand(GET_THUMBNAIL + "\n" + nm.getKey("ID"));
+                                        
+                                        if (!nm2.hasError())
+                                        {
+                                            String filePath = nm2.getKey("filePath");
+                                            
+                                            File f = new File(filePath);
+                                            Files.copy(f.toPath(), out);
+                                            f.delete();
+    
+                                            return new Response(Result.OK);
+                                        }
+                                        else
+                                        {
+                                             return new Response(
+                                                Result.ERROR,
+                                                new Error(ErrorCode.IMAGE_NOT_FOUND, "Thumbnail download error.")
+                                            );
+                                        }                                        
+                                    }
+                                });
+                            })).start();
+                            break;
+                            
+                        case "captureComplete":
+                            
+                            (new Thread (() -> {
+                                cel.captureComplete(c, new Capture() {
+                                    @Override
+                                    public String getId()
+                                    {    
+                                        return nm.getKey("ID");                                        
+                                    }
+
+                                    @Override
+                                    public CaptureState getState()
+                                    {    
+                                        if ("Complete".equals(nm.getKey("State")))
+                                        {
+                                            return CaptureState.COMPLETE;
+                                        }
+                                        
+                                        return CaptureState.EXECUTING;                                        
+                                    }
+
+                                    @Override
+                                    public CaptureMethod getMethod()
+                                    {    
+                                        if ("Movie".equals(nm.getKey("Method")))
+                                        {
+                                            return CaptureMethod.MOVIE;
+                                        }
+                                        
+                                        return CaptureMethod.STILL_IMAGE;                                        
+                                    }
+                                }
+                                );
+                            })).start();
+                            break;
+                            
+                        default:
+                            break;
+                    }
+                }
+            });
+        }
     }
     
     @Override
