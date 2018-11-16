@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package pentaxwifi.usb;
+package pfpentaxtether.usb;
 
 import com.ricoh.camera.sdk.wireless.api.CameraDevice;
 import com.ricoh.camera.sdk.wireless.api.CameraEventListener;
@@ -21,9 +21,7 @@ interface USBInterface
     public boolean connectCamera(int index);
     
     public boolean disconnectCamera(int index);
-    
-    public List<CameraDevice> detectDevices();
-    
+        
     public boolean isConnected();
     
     public boolean connect();
@@ -41,4 +39,6 @@ interface USBInterface
     public void processCallBacks(CameraDevice c, List<CameraEventListener> l);
 
     public CameraStatus getStatus();
+    
+    public List<CameraDevice> detectDevices();
 }

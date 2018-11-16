@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package pentaxwifi;
+package pfpentaxtether;
 
 import com.ricoh.camera.sdk.wireless.api.CameraImage;
 import com.ricoh.camera.sdk.wireless.api.response.ErrorCode;

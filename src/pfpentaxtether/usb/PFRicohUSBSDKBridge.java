@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package pentaxwifi.usb;
+package pfpentaxtether.usb;
 
 import com.ricoh.camera.sdk.wireless.api.CameraDevice;
 import com.ricoh.camera.sdk.wireless.api.CameraDeviceDetector;
@@ -49,13 +49,15 @@ import java.text.SimpleDateFormat;
  *
  * @author Adam
  */
-public final class RicohUsbSdkBridge implements USBInterface
+public final class PFRicohUSBSDKBridge implements USBInterface
 {
     private Process conn;
     private PrintWriter p;
     private InputStream in;
     private boolean connected;
-    
+    private boolean waiting;
+    private CameraStatus lastStatus;
+        
     // Commands
     public static final String GET_DEVICE_INFO = "0";
     public static final String CONNECT = "1";
@@ -74,6 +76,9 @@ public final class RicohUsbSdkBridge implements USBInterface
     
     public static final String GET_SHUTTER_SPEED = "18";
     public static final String SET_SHUTTER_SPEED = "19";  
+    
+    // TODO
+    public static final String GET_CAPTURE_METHOD = "38";
     
     public static final String GET_NUM_EVENTS = "1000";
     public static final String GET_NEXT_EVENT = "1001";
@@ -123,7 +128,7 @@ public final class RicohUsbSdkBridge implements USBInterface
         {
             connected = false;
             sendCommand(EXIT);
-            conn.destroy();
+            conn.destroyForcibly();
         }
     }
     
@@ -133,32 +138,17 @@ public final class RicohUsbSdkBridge implements USBInterface
         return connected;
     }
     
-    public RicohUsbSdkBridge()
+    public PFRicohUSBSDKBridge()
     {
         connected = false;
-        connect();
-        
-        /*p.write("1\n");
-        p.flush();
-        
-        System.out.println(readUntilChar(i,'}'));
-        
-        p.write("2\n");
-        p.flush();
-        
-        System.out.println(readUntilChar(i,'}'));*/
-        
-        /*conn.getOutputStream().write('9');
-        conn.getOutputStream().write('9');
-        conn.getOutputStream().write('\r');
-
-        conn.getOutputStream().write('\n');
-        conn.getOutputStream().flush();*/
-
+        waiting = false;
+        //connect();
     }
     
-    synchronized public NetworkMessage sendCommand(String c)
+    synchronized public USBMessage sendCommand(String c)
     {
+        waiting = true;
+        
         if (!"".equals(c))
         {
             p.write(c);
@@ -166,53 +156,66 @@ public final class RicohUsbSdkBridge implements USBInterface
             p.flush();
         }
         
-        NetworkMessage nm = new NetworkMessage(readUntilChar(in, NetworkMessage.getMessageDelim()));
+        USBMessage nm = new USBMessage(readUntilChar(in, USBMessage.getMessageDelim()));
+        
+        waiting = false;
         
         return nm;
     }
     
     @Override
-    public CameraStatus getStatus()
+    synchronized public CameraStatus getStatus()
     {
-        NetworkMessage nm = this.sendCommand(GET_STATUS);
+        // Return a cached response if we're waiting for another call
+        if (!waiting || lastStatus == null)
+        {      
+            USBMessage nm = this.sendCommand(GET_STATUS);
+
+            lastStatus =  new CameraStatus() {
+                @Override
+                public int getBatteryLevel() {
+                    return Integer.parseInt(nm.getKey("BatteryLevel"));
+                }
+
+                @Override
+                public Capture getCurrentCapture() {
+
+                    return new Capture() {
+                        @Override
+                        public String getId() {
+                            return "0";
+                        }
+
+                        @Override
+                        public CaptureState getState() {
+                            return CaptureState.COMPLETE;
+                        }
+
+                        @Override
+                        public CaptureMethod getMethod() {
+                            return CaptureMethod.STILL_IMAGE;
+                        }
+                    };                
+                }
+            };    
+        }
         
-        return new CameraStatus() {
-            @Override
-            public int getBatteryLevel() {
-                return Integer.parseInt(nm.getKey("BatteryLevel"));
-            }
-
-            @Override
-            public Capture getCurrentCapture() {
-                
-                return new Capture() {
-                    @Override
-                    public String getId() {
-                        return "0";
-                    }
-
-                    @Override
-                    public CaptureState getState() {
-                        return CaptureState.COMPLETE;
-                    }
-
-                    @Override
-                    public CaptureMethod getMethod() {
-                        return CaptureMethod.STILL_IMAGE;
-                    }
-                };                
-            }
-        };        
+        return lastStatus;
     }
-        
+    
     @Override
     public List<CameraDevice> detectDevices()
     {
         List<CameraDevice> out = new LinkedList<>();
         
+        if (!isConnected())
+        {
+            connect();
+        }
+        
         if (isConnected())
         {
-            NetworkMessage nm = sendCommand(GET_DEVICE_INFO);
+            USBMessage nm = sendCommand(GET_DEVICE_INFO);
             
             disconnect();
             
@@ -250,7 +253,7 @@ public final class RicohUsbSdkBridge implements USBInterface
     @Override 
     public int getNumEvents()
     {
-        NetworkMessage nm = this.sendCommand(GET_NUM_EVENTS);
+        USBMessage nm = this.sendCommand(GET_NUM_EVENTS);
         
         if (!nm.hasError())
         {
@@ -263,7 +266,7 @@ public final class RicohUsbSdkBridge implements USBInterface
     @Override
     public void processCallBacks(CameraDevice c, List<CameraEventListener> l)
     {
-        NetworkMessage nm = this.sendCommand(GET_NEXT_EVENT);
+        USBMessage nm = this.sendCommand(GET_NEXT_EVENT);
         
         if (!nm.hasError())
         {
@@ -288,7 +291,7 @@ public final class RicohUsbSdkBridge implements USBInterface
                             
                         case "imageStored":
                             
-                            final RicohUsbSdkBridge br = this;
+                            final PFRicohUSBSDKBridge br = this;
                             
                             (new Thread (() -> {
                                 cel.imageStored(c, new CameraImage() {
@@ -367,7 +370,7 @@ public final class RicohUsbSdkBridge implements USBInterface
                                     @Override
                                     public Response getData(OutputStream out) throws IOException
                                     {   
-                                        NetworkMessage nm2 = br.sendCommand(GET_IMAGE + "\n" + nm.getKey("ID"));
+                                        USBMessage nm2 = br.sendCommand(GET_IMAGE + "\n" + nm.getKey("ID"));
                                         
                                         if (!nm2.hasError())
                                         {
@@ -391,7 +394,7 @@ public final class RicohUsbSdkBridge implements USBInterface
                                     @Override
                                     public Response getThumbnail(OutputStream out) throws IOException
                                     {
-                                        NetworkMessage nm2 = br.sendCommand(GET_THUMBNAIL + "\n" + nm.getKey("ID"));
+                                        USBMessage nm2 = br.sendCommand(GET_THUMBNAIL + "\n" + nm.getKey("ID"));
                                         
                                         if (!nm2.hasError())
                                         {
@@ -469,7 +472,7 @@ public final class RicohUsbSdkBridge implements USBInterface
             return null;
         }
         
-        final NetworkMessage nm;
+        final USBMessage nm;
         
         if ((new FNumber()).getName().equals(s.getName()))
         {
@@ -487,9 +490,13 @@ public final class RicohUsbSdkBridge implements USBInterface
         {
             nm = this.sendCommand(GET_EXPOSURE_COMPENSATION);
         }
+        else if ((new CaptureMethod()).getName().equals(s.getName()))
+        {
+            nm = this.sendCommand(GET_CAPTURE_METHOD);
+        }
         else
         {
-            System.err.println("Unsupported setting supplied");
+            System.err.println("Unsupported setting supplied " + s);
             
             return null;
         }
@@ -501,7 +508,7 @@ public final class RicohUsbSdkBridge implements USBInterface
             return null;
         }
         else
-        {
+        {            
             USBCameraSetting f = USBCameraSetting.getUSBSetting(nm.getKey("current" + s.getName()), nm.getKey("available" + s.getName()), s.getClass());
             
             System.out.println(f.toStringDebug());
@@ -520,7 +527,7 @@ public final class RicohUsbSdkBridge implements USBInterface
             return false;
         }
         
-        final NetworkMessage nm;
+        final USBMessage nm;
         
         if ((new FNumber()).getName().equals(s.getName()))
         {
@@ -576,7 +583,7 @@ public final class RicohUsbSdkBridge implements USBInterface
             );
         }
         
-        final NetworkMessage nm = this.sendCommand(CAPTURE);
+        final USBMessage nm = this.sendCommand(CAPTURE);
 
         if (nm.hasError())
         {
@@ -634,7 +641,7 @@ public final class RicohUsbSdkBridge implements USBInterface
         }
         else
         {       
-            NetworkMessage nm = this.sendCommand(CONNECT);
+            USBMessage nm = this.sendCommand(CONNECT);
 
             if (nm.hasError())
             {
@@ -670,7 +677,7 @@ public final class RicohUsbSdkBridge implements USBInterface
         }
         else
         {       
-            NetworkMessage nm = this.sendCommand(DISCONNECT);
+            USBMessage nm = this.sendCommand(DISCONNECT);
 
             if (nm.hasError())
             {
@@ -688,7 +695,7 @@ public final class RicohUsbSdkBridge implements USBInterface
      
     public static void main(String args[])
     { 
-        RicohUsbSdkBridge br = new RicohUsbSdkBridge();
+        PFRicohUSBSDKBridge br = new PFRicohUSBSDKBridge();
         
         for (CameraDevice d : br.detectDevices())
         {

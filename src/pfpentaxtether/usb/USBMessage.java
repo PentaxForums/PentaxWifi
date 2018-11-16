@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package pentaxwifi.usb;
+package pfpentaxtether.usb;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
  *
  * @author Adam
  */
-public class NetworkMessage
+public class USBMessage
 {
     private static final char END_DELIM = '}';
     private static final String MAP_DELIM = ",";
@@ -32,7 +32,7 @@ public class NetworkMessage
      * Parse the message from input string
      * @param s 
      */
-    public NetworkMessage (String s)
+    public USBMessage (String s)
     {
         s = s.trim();
         

@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package pentaxwifi.gui;
+package pfpentaxtether.gui;
 
 import com.ricoh.camera.sdk.wireless.api.CameraImage;
 import com.ricoh.camera.sdk.wireless.api.CaptureState;
@@ -49,13 +49,14 @@ import javax.swing.JOptionPane;
 import javax.swing.JPopupMenu;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.TableModel;
-import pentaxwifi.CameraConnectionModel;
-import static pentaxwifi.CameraConnectionModel.KEEPALIVE;
-import pentaxwifi.CameraException;
-import pentaxwifi.CaptureEventListener;
-import pentaxwifi.gui.helpers.ComboItem;
-import pentaxwifi.FuturePhoto;
-import pentaxwifi.gui.helpers.CameraSettingTableModel;
+import pfpentaxtether.gui.GuiEventListener;
+import pfpentaxtether.CameraConnectionModel;
+import static pfpentaxtether.CameraConnectionModel.KEEPALIVE;
+import pfpentaxtether.CameraException;
+import pfpentaxtether.CaptureEventListener;
+import pfpentaxtether.gui.helpers.ComboItem;
+import pfpentaxtether.FuturePhoto;
+import pfpentaxtether.gui.helpers.CameraSettingTableModel;
 
 /**
  *
@@ -95,7 +96,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     public static final ComboItem DEFAULT_COMBO_ITEM = new ComboItem("---", null);
     
     // Delay between refresh of camera status (ms) (does not block)
-    public static final int STATUS_REFRESH = 500;
+    public static final int STATUS_REFRESH = 2000;
     
     // Version number
     public static final String VERSION_NUMBER = "1.0.0 Beta 7";
@@ -260,7 +261,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         captureButton.setComponentPopupMenu(popupMenu2);
         
         // Camera status checker
-        (Executors.newSingleThreadScheduledExecutor()).scheduleAtFixedRate(() -> {
+        (Executors.newSingleThreadScheduledExecutor()).scheduleWithFixedDelay(() -> {
 
             int cameraStatus = m.getCameraStatus();
 
@@ -1413,7 +1414,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         queuePanel.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(0, 0, 0)));
 
         queueTable.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(0, 0, 0)));
-        queueTable.setModel(new pentaxwifi.gui.helpers.CameraSettingTableModel(
+        queueTable.setModel(new pfpentaxtether.gui.helpers.CameraSettingTableModel(
             new Object [][] {
                 {null, null, null, null}
             },
@@ -1855,7 +1856,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         
         try
         {
-             c = ((ComboItem) this.avMenu.getSelectedItem()).getValue();
+            c = ((ComboItem) this.avMenu.getSelectedItem()).getValue();
             if (c != null)
             {
                 l.add((CaptureSetting) c);

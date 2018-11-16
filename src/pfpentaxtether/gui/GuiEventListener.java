@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package pentaxwifi.gui;
+package pfpentaxtether.gui;
 
 import com.ricoh.camera.sdk.wireless.api.CameraDevice;
 import com.ricoh.camera.sdk.wireless.api.CameraEventListener;
@@ -16,8 +16,8 @@ import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.imageio.ImageIO;
-import pentaxwifi.CameraConnectionModel;
-import pentaxwifi.CaptureEventListener;
+import pfpentaxtether.CameraConnectionModel;
+import pfpentaxtether.CaptureEventListener;
 
 /**
  *

@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package pentaxwifi.usb;
+package pfpentaxtether.usb;
 
 import com.ricoh.camera.sdk.wireless.api.CameraDevice;
 import com.ricoh.camera.sdk.wireless.api.CameraEventListener;
@@ -39,14 +39,14 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import static pentaxwifi.CameraConnectionModel.KEEPALIVE;
-import pentaxwifi.CameraException;
+import static pfpentaxtether.CameraConnectionModel.KEEPALIVE;
+import pfpentaxtether.CameraException;
 
 /**
  *
  * @author Adam
  */
-public class USBCamera implements CameraDevice
+public final class USBCamera implements CameraDevice
 {
     private USBInterface iface;
     private String fw;
@@ -57,6 +57,7 @@ public class USBCamera implements CameraDevice
     private boolean connected;
     private List<CameraEventListener> listeners;
     private static final int POLL_FOR_EVENTS = 1000;
+    private ScheduledExecutorService exec;
     
     /**
      *
@@ -78,15 +79,14 @@ public class USBCamera implements CameraDevice
         this.connected = false;
         this.listeners = new LinkedList<>();
         
-        // Start event polling
-        ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor();
-        exec.scheduleAtFixedRate(() -> {
-
-                if (this.iface.isConnected())
-                {
-                    this.iface.processCallBacks(this, listeners);
-                }
-        }, 0, POLL_FOR_EVENTS, TimeUnit.MILLISECONDS);
+        this.addEventListener(new CameraEventListener()
+        {
+            @Override
+            public void deviceDisconnected(CameraDevice sender)
+            {   
+                connected = false;
+            }
+        });
     }
         
     @Override
@@ -165,6 +165,27 @@ public class USBCamera implements CameraDevice
             if (this.iface.connectCamera(index))
             {
                 connected = true;
+                
+                // Start event polling
+                
+                if (exec != null)
+                {
+                    exec.shutdownNow();
+                }
+                
+                exec = Executors.newSingleThreadScheduledExecutor();
+                exec.scheduleWithFixedDelay(() -> {
+
+                        if (this.iface.isConnected() && connected)
+                        {
+                            this.iface.processCallBacks(this, listeners);
+                        }
+                        else
+                        {
+                            exec.shutdownNow();
+                        }
+                }, 0, POLL_FOR_EVENTS, TimeUnit.MILLISECONDS);
+                
                 return new Response(
                     Result.OK
                 );

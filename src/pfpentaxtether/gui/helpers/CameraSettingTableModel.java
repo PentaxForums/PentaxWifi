@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package pentaxwifi.gui.helpers;
+package pfpentaxtether.gui.helpers;
 
 import com.ricoh.camera.sdk.wireless.api.setting.capture.CaptureSetting;
 import java.io.File;
@@ -15,7 +15,7 @@ import java.io.ObjectOutputStream;
 import java.util.List;
 import java.util.Scanner;
 import javax.swing.table.DefaultTableModel;
-import pentaxwifi.gui.MainGui;
+import pfpentaxtether.gui.MainGui;
 
 /**
  *

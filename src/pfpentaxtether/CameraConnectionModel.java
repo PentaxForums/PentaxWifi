@@ -3,12 +3,13 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package pentaxwifi;
+package pfpentaxtether;
 
 import com.ricoh.camera.sdk.wireless.api.CameraDevice;
 import com.ricoh.camera.sdk.wireless.api.CameraDeviceDetector;
 import com.ricoh.camera.sdk.wireless.api.CameraEventListener;
 import com.ricoh.camera.sdk.wireless.api.CameraImage;
+import com.ricoh.camera.sdk.wireless.api.CameraStatus;
 import com.ricoh.camera.sdk.wireless.api.Capture;
 import com.ricoh.camera.sdk.wireless.api.CaptureState;
 import com.ricoh.camera.sdk.wireless.api.DeviceInterface;
@@ -46,7 +47,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import pentaxwifi.usb.RicohUsbSdkBridge;
+import pfpentaxtether.usb.PFRicohUSBSDKBridge;
+import pfpentaxtether.usb.USBCameraDeviceDetector;
 
 /**
  * Model for camera connections through the Pentax Wi-Fi SDK
@@ -129,7 +131,15 @@ public class CameraConnectionModel
             return CAMERA_UNKNOWN;
         }
         
-        if (null == this.cam.getStatus().getCurrentCapture() || this.cam.getStatus().getCurrentCapture().getState() == CaptureState.COMPLETE)
+        // This prevents a double call to the SDK
+        CameraStatus s = this.cam.getStatus();
+        
+        if (null == s)
+        {
+            return CAMERA_UNKNOWN;
+        }
+        
+        if (null == s.getCurrentCapture() || s.getCurrentCapture().getState() == CaptureState.COMPLETE)
         {
             return CAMERA_OK;
         }
@@ -163,13 +173,13 @@ public class CameraConnectionModel
     /**
      * Gets all images currently on the camera.  Not downloaded unless download function is called.
      * @return 
-     * @throws pentaxwifi.CameraException 
+     * @throws pfpentaxtether.CameraException 
      */
     public List<CameraImage> getAllImagesOnCamera() throws CameraException
     {
         if (isConnected())
         {
-            return this.cam.getImages();
+            return getCam().getImages();
         }
         else
         {
@@ -410,7 +420,7 @@ public class CameraConnectionModel
     {       
         List<CaptureSetting> l = Arrays.asList(new ShutterSpeed(), new ExposureCompensation(), new FNumber(), new ISO());
         
-        Response r = cam.getCaptureSettings(l);
+        Response r = getCam().getCaptureSettings(l);
 
         if (!r.getErrors().isEmpty())
         {
@@ -440,18 +450,51 @@ public class CameraConnectionModel
         return captureStillImage(focus);
     }
     
+    private CameraDevice getCam() throws CameraException
+    {
+        if (cam == null)
+        {
+            throw new CameraException("Camera is not connected");
+        }
+        
+        return cam;
+    }
+    
     /**
      * Prepares camera settings for the next capture
      * @param settings
      * @throws CameraException 
      */
     public void setCaptureSettings(List<CaptureSetting> settings) throws CameraException
-    {                
+    {               
+        boolean updated = false;
+        
         if (isConnected())
         {  
             for (CaptureSetting s : settings)
             {
-                Response r = cam.setCaptureSettings(Arrays.asList(s));
+                if (s == null) continue;
+
+                boolean doContinue = false;
+                
+                for (CaptureSetting current : new CaptureSetting[] {this.av, this.tv, this.ev, this.iso})
+                {
+                    if (s.getName().equals(current.getName()) && s.getValue().equals(current.getValue()))
+                    {
+                        doContinue = true;
+                        break;
+                    }
+                }
+
+                if (doContinue)
+                {
+                    System.out.println("Skipping setting " + s + " because it matches the current value");
+                    continue;
+                }
+                
+                updated = true;
+                
+                Response r = getCam().setCaptureSettings(Arrays.asList(s));
                 
                 if (r != null)
                 {
@@ -471,7 +514,10 @@ public class CameraConnectionModel
             throw new CameraException("Not connected");
         }
         
-        this.refreshCurrentSettings();
+        if (updated)
+        {
+            this.refreshCurrentSettings();
+        }
     }
     
     /**
@@ -482,7 +528,7 @@ public class CameraConnectionModel
     {
         if (isConnected())
         {
-            Response r = this.cam.startLiveView();
+            Response r = getCam().startLiveView();
             if (r.getResult() == Result.ERROR)
             {
                 throw new CameraException("Live view start FAILED: " + r.getErrors().get(0).getMessage());
@@ -502,7 +548,7 @@ public class CameraConnectionModel
     {
         if (isConnected())
         {
-            Response r = this.cam.stopLiveView();
+            Response r = getCam().stopLiveView();
             if (r.getResult() == Result.ERROR)
             {
                 throw new CameraException("Live view stop FAILED: " + r.getErrors().get(0).getMessage());
@@ -516,7 +562,7 @@ public class CameraConnectionModel
     
     /**
      * Attempts to establish a connection to the camera
-     * @throws pentaxwifi.CameraException
+     * @throws pfpentaxtether.CameraException
      */
     public final void connect() throws CameraException
     {
@@ -525,8 +571,8 @@ public class CameraConnectionModel
         /*List<CameraDevice> detectedDevices =
             CameraDeviceDetector.detect(DeviceInterface.WLAN);*/
         
-        RicohUsbSdkBridge br = new RicohUsbSdkBridge();
-        List<CameraDevice> detectedDevices = br.detectDevices();
+        List<CameraDevice> detectedDevices =
+            USBCameraDeviceDetector.detect(USBCameraDeviceDetector.PF_USB_BRIDGE);
         
         if (detectedDevices.isEmpty() == false)
         {
@@ -582,14 +628,17 @@ public class CameraConnectionModel
             );
             
             // Start keepalive thread
-            ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor();
-            exec.scheduleAtFixedRate(() -> {
+            final ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor();
+            exec.scheduleWithFixedDelay(() -> {
                 try
-                {
+                {                 
+                    //if (null == this.cam.getStatus().getCurrentCapture() ||
+                    //        this.cam.getStatus().getCurrentCapture().getState() == CaptureState.COMPLETE)
+                    
                     // Only fire if the camera isn't busy
-                    if (null == this.cam.getStatus().getCurrentCapture() ||
-                            this.cam.getStatus().getCurrentCapture().getState() == CaptureState.COMPLETE)
+                    if(getCameraStatus() == CAMERA_OK)
                     {
+                        System.out.println("Keepalive");
                         refreshCurrentSettings();
                     }
                 }
@@ -600,7 +649,7 @@ public class CameraConnectionModel
                     disconnect();
                     exec.shutdownNow();
                 }
-            }, 0, KEEPALIVE, TimeUnit.MILLISECONDS);
+            }, KEEPALIVE, KEEPALIVE, TimeUnit.MILLISECONDS);
         }    
         
         if (!isConnected())
@@ -626,8 +675,9 @@ public class CameraConnectionModel
     {
         if (isConnected())
         {
-            cam.disconnect(DeviceInterface.WLAN);
-            cam = null; 
+            CameraDevice c = cam;
+            cam = null;            
+            c.disconnect(DeviceInterface.WLAN);
         }
     }
     
@@ -650,7 +700,7 @@ public class CameraConnectionModel
         {        
             try
             {
-                Response r = cam.focus();
+                Response r = getCam().focus();
 
                 if (r.getResult() != Result.OK)
                 {
@@ -683,12 +733,12 @@ public class CameraConnectionModel
         
         CaptureMethod captureMethod = new CaptureMethod();
         Response response =
-            cam.getCaptureSettings(
+            getCam().getCaptureSettings(
                 Arrays.asList((CaptureSetting) captureMethod));
         
         if (response.getResult() == Result.ERROR)
         {
-            for (CameraEventListener e : this.cam.getEventListeners())
+            for (CameraEventListener e : getCam().getEventListeners())
             {
                 (new Thread (() -> {
                   e.captureComplete(null, null);  
@@ -703,7 +753,7 @@ public class CameraConnectionModel
             List<CaptureSetting> availableList = captureMethod.getAvailableSettings();
             if (availableList.contains(CaptureMethod.STILL_IMAGE))
             {
-                response = cam.setCaptureSettings(
+                response = getCam().setCaptureSettings(
                     Arrays.asList((CaptureSetting) CaptureMethod.STILL_IMAGE));
                 if (response.getResult() == Result.ERROR)
                 {
@@ -715,7 +765,7 @@ public class CameraConnectionModel
                 throw new CameraException("Camera does not support image capture.");
             }
         }
-
+        
         StartCaptureResponse startCaptureResponse = null;
         
         try

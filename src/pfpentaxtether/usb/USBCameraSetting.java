@@ -3,8 +3,9 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package pentaxwifi.usb;
+package pfpentaxtether.usb;
 
+import com.ricoh.camera.sdk.wireless.api.setting.capture.CaptureMethod;
 import com.ricoh.camera.sdk.wireless.api.setting.capture.CaptureSetting;
 import com.ricoh.camera.sdk.wireless.api.setting.capture.ExposureCompensation;
 import com.ricoh.camera.sdk.wireless.api.setting.capture.FNumber;
@@ -35,6 +36,11 @@ public class USBCameraSetting <T extends CaptureSetting> extends CaptureSetting
      */
     public static <T extends CaptureSetting> USBCameraSetting<T> getUSBSetting(String current, String available, Class<T> cls)
     {
+        if (current == null)
+        {
+            return null;
+        }
+        
         // Get current setting
         T cur = getMatchingSetting(current.trim(), cls);
         
@@ -91,6 +97,7 @@ public class USBCameraSetting <T extends CaptureSetting> extends CaptureSetting
         System.out.println(getUSBSetting("1/100", "1/100|1/250|20|30|1.5", ShutterSpeed.class).toStringDebug());
         System.out.println(getUSBSetting("0.3", "-0.7|1.0|0.0|0.3", ExposureCompensation.class).toStringDebug());
         System.out.println(getUSBSetting("100", "100|200|1600|3200|12800", ISO.class).toStringDebug());
+        System.out.println(getUSBSetting("Movie", "Movie|StillImage", CaptureMethod.class).toStringDebug());
     }
     
     /**

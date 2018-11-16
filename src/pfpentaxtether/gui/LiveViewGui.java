@@ -3,14 +3,14 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package pentaxwifi.gui;
+package pfpentaxtether.gui;
 
 import java.awt.image.BufferedImage;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.ImageIcon;
-import pentaxwifi.CameraConnectionModel;
-import pentaxwifi.CameraException;
+import pfpentaxtether.CameraConnectionModel;
+import pfpentaxtether.CameraException;
 
 /**
  *

@@ -1,5 +1,5 @@
 
-import pentaxwifi.gui.MainGui;
+import pfpentaxtether.gui.MainGui;
 
 /*
  * To change this license header, choose License Headers in Project Properties.
