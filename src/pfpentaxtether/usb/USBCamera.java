@@ -31,7 +31,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -58,6 +62,8 @@ public final class USBCamera implements CameraDevice
     private List<CameraEventListener> listeners;
     private static final int POLL_FOR_EVENTS = 1000;
     private ScheduledExecutorService exec;
+    private static final int SOCKET_BUFFER_SIZE = 50000;
+    private ServerSocket sock;
     
     /**
      *
@@ -152,58 +158,55 @@ public final class USBCamera implements CameraDevice
     @Override
     synchronized public Response connect(DeviceInterface di)
     {
-        if (this.iface.isConnected())
+        if (!this.iface.isConnected())
         {
-            return new Response(
-                Result.ERROR,
-                new Error(ErrorCode.NETWORK_ERROR, "Another camera is already connected.  Disconnect it first.")
-            );
-        }
-        
-        if (this.iface.connect())
-        {
-            if (this.iface.connectCamera(index))
-            {
-                connected = true;
-                
-                // Start event polling
-                
-                if (exec != null)
-                {
-                    exec.shutdownNow();
-                }
-                
-                exec = Executors.newSingleThreadScheduledExecutor();
-                exec.scheduleWithFixedDelay(() -> {
-
-                        if (this.iface.isConnected() && connected)
-                        {
-                            this.iface.processCallBacks(this, listeners);
-                        }
-                        else
-                        {
-                            exec.shutdownNow();
-                        }
-                }, 0, POLL_FOR_EVENTS, TimeUnit.MILLISECONDS);
-                
-                return new Response(
-                    Result.OK
-                );
-            }
-            else
+            if (!this.iface.connect())
             {
                 return new Response(
                     Result.ERROR,
                     new Error(ErrorCode.NETWORK_ERROR, "Failed to connect")
-                );
-            }    
+                ); 
+            }
+            
+        }
+        
+        if (this.iface.connectCamera(index))
+        {
+            connected = true;
+
+            // Start event polling
+
+            if (exec != null)
+            {
+                exec.shutdownNow();
+            }
+
+            exec = Executors.newSingleThreadScheduledExecutor();
+            exec.scheduleAtFixedRate(() -> {
+
+                    if (this.iface.isConnected() && connected)
+                    {
+                        if (!this.iface.isBusy())
+                        {
+                            this.iface.processCallBacks(this, listeners);
+                        }
+                    }
+                    else
+                    {
+                        exec.shutdownNow();
+                    }
+            }, 0, POLL_FOR_EVENTS, TimeUnit.MILLISECONDS);
+
+            return new Response(
+                Result.OK
+            );
         }
         else
         {
             return new Response(
                 Result.ERROR,
-                new Error(ErrorCode.NETWORK_ERROR, "Failed to connect.")
-            );    
+                new Error(ErrorCode.NETWORK_ERROR, "Failed to connect")
+            );
         }
     }
 
@@ -249,20 +252,135 @@ public final class USBCamera implements CameraDevice
     synchronized public boolean isConnected(DeviceInterface di) {
         return connected;
     }
-
+    
     @Override
-    public Response startLiveView() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    public Response startLiveView()
+    {            
+        try
+        {
+            final ServerSocket serverSocket = new ServerSocket(0);
+            sock = serverSocket;
+                        
+            if (this.iface.startLiveView(serverSocket.getLocalPort()))
+            {
+                new Thread(() -> {
+                    try 
+                    {   
+                        Socket socket = serverSocket.accept();
+                        InputStream inputStream = socket.getInputStream();
+                        
+                        while (true)
+                        {                        
+                            // Read a fixed amount of data
+                            byte[] sizeAr = new byte[4];
+                            inputStream.read(sizeAr);
+                            byte[] imageAr = new byte[SOCKET_BUFFER_SIZE];
+                            inputStream.read(imageAr);
+                        
+                            try
+                            {
+                                int size = ByteBuffer.wrap(sizeAr).asIntBuffer().get();
+
+                                final byte[] imageAr2 = Arrays.copyOfRange(imageAr, 0, size);
+
+      
+                                if (imageAr[size - 1] == -39)
+                                {                        
+                                    new Thread(() -> {
+                                        listeners.forEach((CameraEventListener cel) ->
+                                        { 
+                                            cel.liveViewFrameUpdated(this, imageAr2);
+                                        });
+                                    }).start();
+                                }
+                            }
+                            catch(java.lang.ArrayIndexOutOfBoundsException e)
+                            {
+                                
+                            }
+                            catch(java.lang.IllegalArgumentException e)
+                            {
+                                
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {    
+                        try
+                        {
+                            serverSocket.close();
+                        } 
+                        catch (IOException ex1)
+                        {
+                            
+                        }
+                    }                
+                }).start();
+                
+                return new Response(
+                    Result.OK
+                );
+            }
+            else
+            {
+                serverSocket.close();
+                
+                return new Response(
+                    Result.ERROR,
+                    new Error(ErrorCode.NETWORK_ERROR, "Failed to start live view")
+                );
+            } 
+        }
+        catch (IOException ex)
+        {
+            return new Response(
+                Result.ERROR,
+                new Error(ErrorCode.NETWORK_ERROR, "Failed to start live view due to socket error.")
+            );
+        }
     }
 
     @Override
     public Response stopLiveView() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        
+        try 
+        {
+            if (sock != null)
+            {
+                sock.close();
+            }
+        } catch (IOException ex) {}
+        
+        if (this.iface.stopLiveView())
+        {
+            return new Response(
+                Result.OK
+            );
+        }
+        else
+        {
+            return new Response(
+                Result.ERROR,
+                new Error(ErrorCode.NETWORK_ERROR, "Failed to stop live view")
+            );
+        }    
     }
 
     @Override
     public Response focus() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        if (this.iface.focus())
+        {
+            return new Response(
+                Result.OK
+            );
+        }
+        else
+        {
+            return new Response(
+                Result.ERROR,
+                new Error(ErrorCode.NETWORK_ERROR, "Failed to focus")
+            );
+        }    
     }
 
     @Override
@@ -275,8 +393,44 @@ public final class USBCamera implements CameraDevice
     public Response stopCapture() {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
+    
+    @Override
+    public Response getCaptureSettings(List<CaptureSetting> list)
+    {
+        boolean status = this.iface.getSettings(list);
+        
+        if (status)
+        {
+            return new Response(
+                Result.OK
+            ); 
+        }
+        
+        return new Response(
+            Result.ERROR,
+            new Error(ErrorCode.INVALID_ARGUMENT, "Error getting settings")
+        );       
+    }
 
     @Override
+    public Response setCaptureSettings(List<CaptureSetting> list)
+    {
+        boolean status = this.iface.setSettings(list);
+        
+        if (status)
+        {
+            return new Response(
+                Result.OK
+            ); 
+        }
+        
+        return new Response(
+            Result.ERROR,
+            new Error(ErrorCode.INVALID_ARGUMENT, "Error setting settings")
+        );       
+    }
+    
+    /*@Override
     public Response getCaptureSettings(List<CaptureSetting> list)
     {
         for (int i = 0; i < list.size(); i++)
@@ -337,7 +491,7 @@ public final class USBCamera implements CameraDevice
         return new Response(
             Result.OK
         );
-    }
+    }*/
 
     @Override
     public Response getCameraDeviceSettings(List<CameraDeviceSetting> list) {

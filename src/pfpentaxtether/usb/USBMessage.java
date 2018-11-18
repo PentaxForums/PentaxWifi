@@ -37,7 +37,7 @@ public class USBMessage
         s = s.trim();
         
         typ = "";
-        err = "Malformed message (" + s + ")";
+        err = "Malformed message [" + s + "]";
         msg = "";
         m = new HashMap<>();
         
@@ -60,9 +60,7 @@ public class USBMessage
                     m.put(kv[0], kv[1]);
                 }
             }
-        }    
-        
-        System.out.println(this);
+        }        
     }
     
     /**

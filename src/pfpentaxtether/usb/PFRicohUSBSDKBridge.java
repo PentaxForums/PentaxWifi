@@ -44,6 +44,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.Date; 
 import java.text.SimpleDateFormat; 
+import java.util.Comparator;
+import java.util.PriorityQueue;
 
 /**
  *
@@ -55,8 +57,15 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     private PrintWriter p;
     private InputStream in;
     private boolean connected;
-    private boolean waiting;
     private CameraStatus lastStatus;
+    
+    private PriorityQueue<String> q;
+    
+    // OS detection
+    public static final String OS = System.getProperty("os.name").toLowerCase();
+    public static final Boolean IS_MAC = OS.contains("mac");
+    public static final Boolean IS_WIN = OS.contains("win");  
+    public static final Boolean IS_UNIX = (OS.contains("aix") || OS.contains("nix") || OS.contains("nux") || OS.contains("droid")) ;
         
     // Commands
     public static final String GET_DEVICE_INFO = "0";
@@ -77,7 +86,14 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     public static final String GET_SHUTTER_SPEED = "18";
     public static final String SET_SHUTTER_SPEED = "19";  
     
-    // TODO
+    public static final String FOCUS = "22";  
+    
+    public static final String GET_ALL_SETTINGS = "3000";
+    public static final String SET_ALL_SETTINGS = "3001";
+    
+    public static final String START_LV = "4000";
+    public static final String STOP_LV = "4001";
+
     public static final String GET_CAPTURE_METHOD = "38";
     
     public static final String GET_NUM_EVENTS = "1000";
@@ -89,9 +105,43 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     public static final String DISCONNECT = "90";
 
     public static final String EXIT = "99";
+        
+    private static final int WAIT_INTERVAL = 10;
     
-    // Responses
-    public static final String AWAITING_COMMAND = "MainMenu";
+      
+    public PFRicohUSBSDKBridge()
+    {
+        connected = false;
+        
+        q = new PriorityQueue<>((String s1, String s2) -> {
+            if (s1.equals(s2))
+            {
+                return 0;
+            }
+            
+            // Equal priority to all but these two
+            if (!s1.equals(GET_NEXT_EVENT) && !s2.equals(GET_STATUS))
+            {
+                return 0;
+            }
+            
+            // Next event goes ahead of status
+            if (s1.equals(GET_NEXT_EVENT) && s2.equals(GET_STATUS))
+            {
+                return 1;
+            }
+            
+            // These two go behind all others
+            if (s1.equals(GET_NEXT_EVENT) || s1.equals(GET_STATUS))
+            {
+                return -1;
+            }
+            
+            // All others go ahead
+            return 1;
+        });
+        //connect();
+    }
     
     
     @Override
@@ -127,6 +177,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         if (connected)
         {
             connected = false;
+            sendCommand(DISCONNECT);
             sendCommand(EXIT);
             conn.destroyForcibly();
         }
@@ -137,17 +188,28 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     {
         return connected;
     }
+  
     
-    public PFRicohUSBSDKBridge()
+    public USBMessage sendCommand(String c)
     {
-        connected = false;
-        waiting = false;
-        //connect();
-    }
-    
-    synchronized public USBMessage sendCommand(String c)
-    {
-        waiting = true;
+        this.q.add(c);
+        
+        //System.out.println("Add " + c + " (" + this.q.size() + ")");
+        //System.out.println("Top: " + this.q.peek());
+
+        while(!this.q.peek().equals(c))
+        {
+            try
+            {
+                Thread.sleep(WAIT_INTERVAL);
+            }
+            catch (InterruptedException ex)
+            {
+                Logger.getLogger(PFRicohUSBSDKBridge.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+        
+        System.out.println("----> Processing " + c);
         
         if (!"".equals(c))
         {
@@ -158,8 +220,12 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         
         USBMessage nm = new USBMessage(readUntilChar(in, USBMessage.getMessageDelim()));
         
-        waiting = false;
+        System.out.println("----< Finished " + c);
+        System.out.println(nm.toString());
         
+        this.q.remove(c);
+        //System.out.println("Pop " + c);
+                
         return nm;
     }
     
@@ -167,11 +233,11 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     synchronized public CameraStatus getStatus()
     {
         // Return a cached response if we're waiting for another call
-        if (!waiting || lastStatus == null)
+        if (q.isEmpty() || lastStatus == null)
         {      
             USBMessage nm = this.sendCommand(GET_STATUS);
 
-            lastStatus =  new CameraStatus() {
+            lastStatus = new CameraStatus() {
                 @Override
                 public int getBatteryLevel() {
                     return Integer.parseInt(nm.getKey("BatteryLevel"));
@@ -216,9 +282,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         if (isConnected())
         {
             USBMessage nm = sendCommand(GET_DEVICE_INFO);
-            
-            disconnect();
-            
+                        
             if (nm.hasError())
             {
                 System.err.println(nm.getError());
@@ -462,7 +526,50 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         }
     }
     
+    /**
+     *
+     * @param list
+     * @return
+     */
     @Override
+    public boolean getSettings(List<CaptureSetting> list)
+    {
+        if (!isConnected())
+        {
+            System.err.println("Not connected");  
+        
+            return false;
+        }
+        
+        USBMessage nm = this.sendCommand(GET_ALL_SETTINGS);
+        
+        for (int i = 0; i < list.size(); i++)
+        {
+            CaptureSetting s = list.get(i);
+            
+            if (s == null)
+            {
+                System.err.println("Null value passed to getCaptureSettings");
+            }
+            
+            CaptureSetting newSetting = (CaptureSetting) USBCameraSetting.getUSBSetting(nm.getKey("current" + s.getName()), nm.getKey("available" + s.getName()), s.getClass());
+            
+            if (newSetting != null)
+            {
+                list.set(i, newSetting);
+            }
+            else
+            {
+                System.err.println("Failed to get " + s.getName() + " value from camera");
+                 
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    @Deprecated
     public CaptureSetting getSetting(CaptureSetting s)
     {        
         if (!isConnected())
@@ -510,14 +617,12 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         else
         {            
             USBCameraSetting f = USBCameraSetting.getUSBSetting(nm.getKey("current" + s.getName()), nm.getKey("available" + s.getName()), s.getClass());
-            
-            System.out.println(f.toStringDebug());
-            
+                        
             return (CaptureSetting) f;
         }        
     }
     
-    @Override
+    @Deprecated
     public boolean setSetting(CaptureSetting s)
     {        
         if (!isConnected())
@@ -581,6 +686,11 @@ public final class PFRicohUSBSDKBridge implements USBInterface
                 new Error(ErrorCode.NETWORK_ERROR, "Not connected"),
                 null
             );
+        }
+        
+        if (focus)
+        {
+            focus();
         }
         
         final USBMessage nm = this.sendCommand(CAPTURE);
@@ -653,6 +763,12 @@ public final class PFRicohUSBSDKBridge implements USBInterface
                 return true;
             }
         }
+    }
+    
+    @Override
+    public boolean isBusy()
+    {
+        return this.q.size() > 0;
     }
     
     /**
@@ -729,12 +845,12 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         try
         {
             BufferedReader buffer = new BufferedReader(new InputStreamReader(stream));
-
+                        
             int r;
             while ((r = buffer.read()) != -1)
             {
                 char c = (char) r;
-
+                
                 sb.append(c);
 
                 if (c == target) break;
@@ -750,5 +866,80 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         // TODO - handle empty string
         
         return sb.toString();
+    }
+
+    @Override
+    public boolean focus()
+    {
+        return this.sendCommand(FOCUS).hasError() == false;
+    }
+
+    @Override
+    public boolean setSettings(List<CaptureSetting> settingList)
+    {
+        List<CaptureSetting> l = Arrays.asList(new FNumber(), new ShutterSpeed(), new ISO(), new ExposureCompensation());
+
+        String writeString = "\n";
+        
+        // Piece together the parameters
+        for (CaptureSetting sOrdered : l)
+        {
+            String candidateVal = " ";
+            
+            for (CaptureSetting toSet : settingList)
+            {
+                if (sOrdered.getName().equals(toSet.getName()))
+                {
+                    candidateVal = toSet.getValue().toString();
+            
+                    break;
+                }    
+            }
+            
+            if (sOrdered != l.get(l.size() - 1))
+            {
+                candidateVal += "\n";
+            }
+            
+            writeString += candidateVal;
+        }
+        
+        USBMessage nm = this.sendCommand(SET_ALL_SETTINGS + writeString);
+        
+        if (nm.hasError())
+        {
+            System.err.println(nm.getError());
+            return false;
+        }
+        
+        return true;
+        
+    }
+
+    @Override
+    public boolean startLiveView(int port) {
+        
+        USBMessage nm = this.sendCommand(START_LV + "\n" + port);
+        
+        if (nm.hasError())
+        {
+            System.err.println(nm.getError());
+            return false;
+        }
+        
+        return true;
+    }
+
+    @Override
+    public boolean stopLiveView() {
+        USBMessage nm = this.sendCommand(STOP_LV);
+        
+        if (nm.hasError())
+        {
+            System.err.println(nm.getError());
+            return false;
+        }
+        
+        return true;
     }
 }

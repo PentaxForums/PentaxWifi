@@ -65,12 +65,13 @@ public class CameraConnectionModel
     // TODO - also track other state supported by the SDK, such as WB and CI
 
     private final Deque<FuturePhoto> imageQueue;
-    private final Map<Capture, Boolean> captureState;
+    private final Map<String, Boolean> captureState;
     private final List<CameraImage> capturedImages;
 
     private boolean queueLocked;
     private final ImageDownloadManager dm;
     private ScheduledExecutorService capturePool;
+    private CameraEventListener cl;
     
     // Track the most recently queued photo so we can roll back in case of failure
     private FuturePhoto p;
@@ -104,6 +105,30 @@ public class CameraConnectionModel
         this.queueLocked = false;
         this.capturePool = Executors.newScheduledThreadPool(1);
         this.dm = new ImageDownloadManager(this);
+        
+        this.cl = new CameraEventListener()
+        {
+            @Override
+            synchronized public void captureComplete(CameraDevice sender, Capture capture)
+            {                    
+                if (capture != null)
+                {
+                    captureState.put(capture.getId(), true);
+                }
+            }   
+
+            @Override
+            synchronized public void imageStored(CameraDevice sender, CameraImage image)
+            {
+                capturedImages.add(image);
+            }
+
+            @Override
+            synchronized public void deviceDisconnected(CameraDevice sender)
+            {   
+                disconnect();
+            }
+        };
     }
     
     /**
@@ -288,12 +313,12 @@ public class CameraConnectionModel
             try
             {                
                 Capture c = this.captureImageWithSettings(next.focus, next.settings);
-                captureState.put(c, false);
+                captureState.put(c.getId(), false);
                 
                 int waited = 0;
                 
                 // Block thread until capture completes
-                while (captureState.get(c) == false)
+                while (captureState.get(c.getId()) == false)
                 {
                     try
                     {   
@@ -416,7 +441,7 @@ public class CameraConnectionModel
      * Obtains current settings from the camera
      * @throws CameraException 
      */
-    public void refreshCurrentSettings() throws CameraException
+    synchronized public void refreshCurrentSettings() throws CameraException
     {       
         List<CaptureSetting> l = Arrays.asList(new ShutterSpeed(), new ExposureCompensation(), new FNumber(), new ISO());
         
@@ -442,10 +467,12 @@ public class CameraConnectionModel
      */
     public Capture captureImageWithSettings(Boolean focus, List<CaptureSetting> settings) throws CameraException
     {
-        for (CaptureSetting s : settings)
+        setCaptureSettings(settings);
+        
+        /*for (CaptureSetting s : settings)
         {
             setCaptureSettings(Arrays.asList(s));
-        }
+        }*/
                 
         return captureStillImage(focus);
     }
@@ -465,36 +492,33 @@ public class CameraConnectionModel
      * @param settings
      * @throws CameraException 
      */
-    public void setCaptureSettings(List<CaptureSetting> settings) throws CameraException
-    {               
-        boolean updated = false;
+    synchronized public void setCaptureSettings(List<CaptureSetting> settings) throws CameraException
+    {    
+        List<CaptureSetting> toChange = new ArrayList<>();
         
         if (isConnected())
         {  
+            // Get the latest settings
+            this.refreshCurrentSettings();     
+            
+            // Figure out which settings are actually being updated
             for (CaptureSetting s : settings)
             {
                 if (s == null) continue;
-
-                boolean doContinue = false;
                 
                 for (CaptureSetting current : new CaptureSetting[] {this.av, this.tv, this.ev, this.iso})
                 {
-                    if (s.getName().equals(current.getName()) && s.getValue().equals(current.getValue()))
+                    if (s.getName().equals(current.getName()) && !s.getValue().equals(current.getValue()))
                     {
-                        doContinue = true;
+                        toChange.add(s);
                         break;
                     }
                 }
+            }
 
-                if (doContinue)
-                {
-                    System.out.println("Skipping setting " + s + " because it matches the current value");
-                    continue;
-                }
-                
-                updated = true;
-                
-                Response r = getCam().setCaptureSettings(Arrays.asList(s));
+            if (!toChange.isEmpty())
+            {
+                Response r = getCam().setCaptureSettings(toChange);
                 
                 if (r != null)
                 {
@@ -514,7 +538,7 @@ public class CameraConnectionModel
             throw new CameraException("Not connected");
         }
         
-        if (updated)
+        if (!toChange.isEmpty())
         {
             this.refreshCurrentSettings();
         }
@@ -524,7 +548,7 @@ public class CameraConnectionModel
      * Starts live view
      * @throws CameraException 
      */
-    public void startLiveView() throws CameraException
+    synchronized public void startLiveView() throws CameraException
     {
         if (isConnected())
         {
@@ -544,7 +568,7 @@ public class CameraConnectionModel
      * Stops live view
      * @throws CameraException 
      */
-    public void stopLiveView() throws CameraException
+    synchronized public void stopLiveView() throws CameraException
     {
         if (isConnected())
         {
@@ -564,17 +588,17 @@ public class CameraConnectionModel
      * Attempts to establish a connection to the camera
      * @throws pfpentaxtether.CameraException
      */
-    public final void connect() throws CameraException
+    synchronized public final void connect() throws CameraException
     {
         disconnect();
         
-        /*List<CameraDevice> detectedDevices =
-            CameraDeviceDetector.detect(DeviceInterface.WLAN);*/
+        //List<CameraDevice> detectedDevices =
+        //    CameraDeviceDetector.detect(DeviceInterface.WLAN);
         
         List<CameraDevice> detectedDevices =
             USBCameraDeviceDetector.detect(USBCameraDeviceDetector.PF_USB_BRIDGE);
         
-        if (detectedDevices.isEmpty() == false)
+        if (!detectedDevices.isEmpty())
         {
             cam = detectedDevices.get(0);  
             
@@ -600,32 +624,10 @@ public class CameraConnectionModel
                         
             refreshCurrentSettings();
             
+            
             // Add local listener for completed captures
-            this.addListener(
-                new CameraEventListener()
-                {
-                    @Override
-                    public void captureComplete(CameraDevice sender, Capture capture)
-                    {                    
-                        if (capture != null)
-                        {
-                            captureState.put(capture, true);
-                        }
-                    }   
-
-                    @Override
-                    public void imageStored(CameraDevice sender, CameraImage image)
-                    {
-                        capturedImages.add(image);
-                    }
-
-                    @Override
-                    public void deviceDisconnected(CameraDevice sender)
-                    {   
-                        disconnect();
-                    }
-                }
-            );
+            this.removeListener(cl);
+            this.addListener(cl);
             
             // Start keepalive thread
             final ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor();
@@ -638,7 +640,6 @@ public class CameraConnectionModel
                     // Only fire if the camera isn't busy
                     if(getCameraStatus() == CAMERA_OK)
                     {
-                        System.out.println("Keepalive");
                         refreshCurrentSettings();
                     }
                 }
@@ -671,7 +672,7 @@ public class CameraConnectionModel
     /**
      * Disconnects from the camera
      */
-    public void disconnect()
+    synchronized public void disconnect()
     {
         if (isConnected())
         {
@@ -694,7 +695,7 @@ public class CameraConnectionModel
      * Commands the camera to focus
      * @throws CameraException 
      */
-    public void focus() throws CameraException
+    synchronized public void focus() throws CameraException
     {
         if (isConnected())
         {        
@@ -724,17 +725,18 @@ public class CameraConnectionModel
      * @return 
      * @throws CameraException 
      */
-    public Capture captureStillImage(boolean focus) throws CameraException
+    synchronized public Capture captureStillImage(boolean focus) throws CameraException
     {
         if (!isConnected())
         {
             throw new CameraException("Not connected");
         }
         
-        CaptureMethod captureMethod = new CaptureMethod();
+        CaptureSetting captureMethod = new CaptureMethod();
+        List<CaptureSetting> settings = Arrays.asList((CaptureSetting) captureMethod);
         Response response =
-            getCam().getCaptureSettings(
-                Arrays.asList((CaptureSetting) captureMethod));
+            getCam().getCaptureSettings(settings);
+        captureMethod = settings.get(0);
         
         if (response.getResult() == Result.ERROR)
         {
@@ -929,7 +931,7 @@ public class CameraConnectionModel
     
     public List<CaptureSetting> getAvailableAv()
     {
-        if (isConnected())
+        if (this.av != null)
         {
             return this.av.getAvailableSettings();
         }
@@ -939,7 +941,7 @@ public class CameraConnectionModel
     
     public List<CaptureSetting> getAvailableTv()
     {
-        if (isConnected())
+        if (this.tv != null)
         {
             return this.tv.getAvailableSettings();
         }
@@ -949,7 +951,7 @@ public class CameraConnectionModel
     
     public List<CaptureSetting> getAvailableISO()
     {
-        if (isConnected())
+        if (this.iso != null)
         {
             return this.iso.getAvailableSettings();
         }
@@ -959,7 +961,7 @@ public class CameraConnectionModel
     
     public List<CaptureSetting> getAvailableEV()
     {
-        if (isConnected())
+        if (this.ev != null)
         {
             return this.ev.getAvailableSettings();
         }

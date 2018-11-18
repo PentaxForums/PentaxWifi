@@ -97,7 +97,7 @@ public class USBCameraSetting <T extends CaptureSetting> extends CaptureSetting
         System.out.println(getUSBSetting("1/100", "1/100|1/250|20|30|1.5", ShutterSpeed.class).toStringDebug());
         System.out.println(getUSBSetting("0.3", "-0.7|1.0|0.0|0.3", ExposureCompensation.class).toStringDebug());
         System.out.println(getUSBSetting("100", "100|200|1600|3200|12800", ISO.class).toStringDebug());
-        System.out.println(getUSBSetting("Movie", "Movie|StillImage", CaptureMethod.class).toStringDebug());
+        System.out.println(getUSBSetting("StillImage", "Movie|StillImage", CaptureMethod.class).toStringDebug());
     }
     
     /**

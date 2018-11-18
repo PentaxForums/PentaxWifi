@@ -8,6 +8,7 @@ package pfpentaxtether.usb;
 import com.ricoh.camera.sdk.wireless.api.CameraDevice;
 import com.ricoh.camera.sdk.wireless.api.CameraEventListener;
 import com.ricoh.camera.sdk.wireless.api.CameraStatus;
+import com.ricoh.camera.sdk.wireless.api.response.Response;
 import com.ricoh.camera.sdk.wireless.api.response.StartCaptureResponse;
 import com.ricoh.camera.sdk.wireless.api.setting.capture.CaptureSetting;
 import java.util.List;
@@ -30,9 +31,13 @@ interface USBInterface
     
     public StartCaptureResponse capture(boolean focus);
     
-    public CaptureSetting getSetting(CaptureSetting s);
+    //public CaptureSetting getSetting(CaptureSetting s);
     
-    public boolean setSetting(CaptureSetting s);
+    public boolean getSettings(List<CaptureSetting> s);
+    
+    public boolean setSettings(List<CaptureSetting> s);
+    
+    //public boolean setSetting(CaptureSetting s);
     
     public int getNumEvents();
                 
@@ -41,4 +46,12 @@ interface USBInterface
     public CameraStatus getStatus();
     
     public List<CameraDevice> detectDevices();
+    
+    public boolean focus();
+    
+    public boolean isBusy();
+    
+    public boolean startLiveView(int port);
+    
+    public boolean stopLiveView();
 }

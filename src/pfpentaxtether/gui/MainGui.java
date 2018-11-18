@@ -96,10 +96,10 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     public static final ComboItem DEFAULT_COMBO_ITEM = new ComboItem("---", null);
     
     // Delay between refresh of camera status (ms) (does not block)
-    public static final int STATUS_REFRESH = 2000;
+    public static final int STATUS_REFRESH = 3000;
     
     // Version number
-    public static final String VERSION_NUMBER = "1.0.0 Beta 7";
+    public static final String VERSION_NUMBER = "1.0.0 Beta 8";
     public static final String SW_NAME = "Pentax Wi-Fi Tether by PentaxForums.com";
     
     /**
@@ -247,24 +247,32 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         final JPopupMenu popupMenu2 = new JPopupMenu();
         JMenuItem focusItem = new JMenuItem("Focus");
         focusItem.addActionListener((ActionEvent e) -> {
-            try
-            {
-                m.focus();
-            }
-            catch (CameraException ex)
-            {
-                JOptionPane.showMessageDialog(null, "Failed to focus. Is camera in MF mode?");
-            }
+             
+            (new Thread()
+            {  
+                @Override
+                public void run()
+                {
+                    try
+                    {
+                        m.focus();
+                    }
+                    catch (CameraException ex)
+                    {
+                        JOptionPane.showMessageDialog(null, "Failed to focus. Is camera in MF mode?");
+                    }
+                }
+            }).start();        
         });
         
         popupMenu2.add(focusItem);
         captureButton.setComponentPopupMenu(popupMenu2);
         
         // Camera status checker
-        (Executors.newSingleThreadScheduledExecutor()).scheduleWithFixedDelay(() -> {
+        (Executors.newSingleThreadScheduledExecutor()).scheduleAtFixedRate(() -> {
 
             int cameraStatus = m.getCameraStatus();
-
+            
             switch (cameraStatus)
             {
                 case CameraConnectionModel.CAMERA_OK:
@@ -2087,7 +2095,13 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         }
         
         // Tell the camera we're disconnecting
-        this.m.disconnect();
+        (new Thread(){
+            @Override
+            public void run()
+            {
+                m.disconnect();
+            }
+        }).start();
         
         (new Thread(){
             @Override
@@ -2098,8 +2112,9 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 {
                     try
                     {
-                        Thread.sleep(1000);
+                        Thread.sleep(2000);
                     } catch (InterruptedException ex) { }
+                
                 }
                 
                 System.exit(0);
@@ -2273,25 +2288,29 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
 
     private void startLiveViewMenuActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_startLiveViewMenuActionPerformed
         
-        if (this.lv == null)
-        {
-            this.lv = new LiveViewGui(this.m);
-        }
-         
-        try
-        {
-            if (this.lv.isVisible())
+        new Thread(() -> {
+            if (this.lv == null)
             {
-                 this.m.stopLiveView();           
+                this.lv = new LiveViewGui(this.m);
             }
-            
-            this.m.startLiveView();
-            this.lv.setVisible(true);
-        }
-        catch (CameraException ex)
-        {
-            Logger.getLogger(MainGui.class.getName()).log(Level.SEVERE, null, ex);
-        }
+
+            try
+            {
+                if (this.lv.isVisible())
+                {
+                     this.m.stopLiveView();           
+                }
+
+                this.m.startLiveView();
+                this.lv.setVisible(true);
+            }
+            catch (CameraException ex)
+            {
+                JOptionPane.showMessageDialog(this, ex.getMessage());
+                //Logger.getLogger(MainGui.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        
+        }).start();
     }//GEN-LAST:event_startLiveViewMenuActionPerformed
 
     private void dropDownStateChanged(java.awt.event.ItemEvent evt) {//GEN-FIRST:event_dropDownStateChanged

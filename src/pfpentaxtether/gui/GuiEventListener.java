@@ -35,20 +35,20 @@ public class GuiEventListener extends CameraEventListener
     }
     
     @Override
-    public void imageStored(CameraDevice sender, CameraImage image)
+    synchronized public void imageStored(CameraDevice sender, CameraImage image)
     {
         System.out.printf("Image Stored. Name: %s%n", image.getName());
                 
         g.imageStored(image);
     }
     
-    public void imageDownloaded(CameraImage image, File f, boolean isThumbnail)
+    synchronized public void imageDownloaded(CameraImage image, File f, boolean isThumbnail)
     {  
         g.imageDownloaded(image, f, isThumbnail);
     }
 
     @Override
-    public void captureComplete(CameraDevice sender, Capture capture)
+    synchronized public void captureComplete(CameraDevice sender, Capture capture)
     {            
         if (sender != null && capture != null)
         {
@@ -59,7 +59,7 @@ public class GuiEventListener extends CameraEventListener
     }
 
     @Override
-    public void deviceDisconnected(CameraDevice sender)
+    synchronized public void deviceDisconnected(CameraDevice sender)
     {   
         System.out.println("Device Disconnected.");
 
@@ -68,7 +68,7 @@ public class GuiEventListener extends CameraEventListener
     
     // Display liveViewFrame in imageView
     @Override
-    public void liveViewFrameUpdated(CameraDevice sender, byte[] liveViewFrame)
+    synchronized public void liveViewFrameUpdated(CameraDevice sender, byte[] liveViewFrame)
     {
         try
         {

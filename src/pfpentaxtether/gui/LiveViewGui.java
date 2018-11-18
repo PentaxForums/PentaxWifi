@@ -81,6 +81,8 @@ public class LiveViewGui extends javax.swing.JFrame {
      */
     public void end()
     {
+        this.setVisible(false);
+        
         try
         {
             this.m.stopLiveView();
@@ -89,8 +91,6 @@ public class LiveViewGui extends javax.swing.JFrame {
         {
             Logger.getLogger(LiveViewGui.class.getName()).log(Level.SEVERE, null, ex);
         }
-        
-        this.liveViewArea.setVisible(false);
     }
     
     private void formWindowClosing(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowClosing
