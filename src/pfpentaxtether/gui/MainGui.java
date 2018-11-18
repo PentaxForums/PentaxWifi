@@ -96,7 +96,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     public static final ComboItem DEFAULT_COMBO_ITEM = new ComboItem("---", null);
     
     // Delay between refresh of camera status (ms) (does not block)
-    public static final int STATUS_REFRESH = 3000;
+    public static final int STATUS_REFRESH = 2000;
     
     // Version number
     public static final String VERSION_NUMBER = "1.0.0 Beta 8";
@@ -372,6 +372,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         {            
             if (image.hasThumbnail())
             {
+                // Todo- RAW thumbs are larger
                 this.m.getDownloadManager().downloadThumb(null, image, this);
             }
             else

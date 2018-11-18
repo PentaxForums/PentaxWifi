@@ -170,32 +170,9 @@ public final class USBCamera implements CameraDevice
             
         }
         
-        if (this.iface.connectCamera(index))
+        if (this.iface.connectCamera(index) && this.iface.processCallBacks(this, listeners))
         {
             connected = true;
-
-            // Start event polling
-
-            if (exec != null)
-            {
-                exec.shutdownNow();
-            }
-
-            exec = Executors.newSingleThreadScheduledExecutor();
-            exec.scheduleAtFixedRate(() -> {
-
-                    if (this.iface.isConnected() && connected)
-                    {
-                        if (!this.iface.isBusy())
-                        {
-                            this.iface.processCallBacks(this, listeners);
-                        }
-                    }
-                    else
-                    {
-                        exec.shutdownNow();
-                    }
-            }, 0, POLL_FOR_EVENTS, TimeUnit.MILLISECONDS);
 
             return new Response(
                 Result.OK

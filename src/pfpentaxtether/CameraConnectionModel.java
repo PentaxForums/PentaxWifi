@@ -732,7 +732,7 @@ public class CameraConnectionModel
             throw new CameraException("Not connected");
         }
         
-        CaptureSetting captureMethod = new CaptureMethod();
+        /*CaptureSetting captureMethod = new CaptureMethod();
         List<CaptureSetting> settings = Arrays.asList((CaptureSetting) captureMethod);
         Response response =
             getCam().getCaptureSettings(settings);
@@ -766,7 +766,7 @@ public class CameraConnectionModel
             {
                 throw new CameraException("Camera does not support image capture.");
             }
-        }
+        }*/
         
         StartCaptureResponse startCaptureResponse = null;
         

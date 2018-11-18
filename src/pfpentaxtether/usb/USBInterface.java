@@ -41,7 +41,7 @@ interface USBInterface
     
     public int getNumEvents();
                 
-    public void processCallBacks(CameraDevice c, List<CameraEventListener> l);
+    public boolean processCallBacks(CameraDevice c, List<CameraEventListener> l);
 
     public CameraStatus getStatus();
     
