@@ -77,7 +77,8 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     public static final Boolean IS_MAC = OS.contains("mac");
     public static final Boolean IS_WIN = OS.contains("win");  
     public static final Boolean IS_UNIX = (OS.contains("aix") || OS.contains("nix") || OS.contains("nux") || OS.contains("droid")) ;
-        
+    public static final Boolean IS_64_BIT = System.getProperty("os.arch").contains("64");
+    
     // Commands
     public static final String GET_DEVICE_INFO = "0";
     public static final String CONNECT = "1";
@@ -160,9 +161,9 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     @Override
     synchronized public boolean connect()
     {
-        if (!System.getProperty("os.arch").contains("64"))
+        if (!IS_WIN && !IS_64_BIT)
         {
-            System.err.println("This OS does not support USB mode yet. Supported platforms: 64-bit Windows, Mac, and Linux");
+            System.err.println("This OS does not support USB mode yet. Supported platforms: 32/64-bit Windows, 64-bit Mac and Linux");
             return false;
         }
         
@@ -176,7 +177,14 @@ public final class PFRicohUSBSDKBridge implements USBInterface
                     
                     if (IS_WIN)
                     {
-                        conn = new ProcessBuilder(cwd + "/bin/usb_interface_win64.exe").start();
+                        if (IS_64_BIT)
+                        {
+                            conn = new ProcessBuilder(cwd + "/bin/usb_interface_win64.exe").start();
+                        }
+                        else
+                        {
+                            conn = new ProcessBuilder(cwd + "/bin/win32/usb_interface_win32.exe").start();
+                        }
                     }
                     else
                     {
@@ -198,10 +206,16 @@ public final class PFRicohUSBSDKBridge implements USBInterface
 
                     p = new PrintWriter(conn.getOutputStream());
                     in = conn.getInputStream();
-
-                    connected = true;
                     
-                } 
+                    if (!conn.isAlive())
+                    {
+                        System.out.println("Error: USB driver failed to start.");
+                        return false;
+                    }
+                    
+                    connected = true;
+                }
+                
                 catch (URISyntaxException ex)
                 {
                     return false;

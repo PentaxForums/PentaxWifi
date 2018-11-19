@@ -11,13 +11,17 @@
     <description>Builds, tests, and runs the project PentaxWifi.</description>
     <import file="nbproject/build-impl.xml"/>
 	<target name="-post-compile">
-		<copy file="./bin/camera-usb-sdk-cpp.dll" todir="${dist.dir}/bin/"/>  
 		<copy file="./bin/usb_interface_linux64" todir="${dist.dir}/bin/"/>        
 		<copy file="./bin/libmtp.so" todir="${dist.dir}/bin/"/>        
 		<copy file="./bin/libmtp.so.9" todir="${dist.dir}/bin/"/>        
 		<copy file="./bin/libmtp.so.9.3.0" todir="${dist.dir}/bin/"/>        
 		<copy file="./bin/libRicohCameraSDKCpp.so" todir="${dist.dir}/bin/"/>        
-		<copy file="./bin/usb_interface_win64.exe" todir="${dist.dir}/bin/"/>   
+		<copy file="./bin/usb_interface_win64.exe" todir="${dist.dir}/bin/"/>
+		<copy file="./bin/camera-usb-sdk-cpp.dll" todir="${dist.dir}/bin/"/>  
+		<copy file="./bin/win32/usb_interface_win32.exe" todir="${dist.dir}/bin/win32/"/>
+		<copy file="./bin/win32/camera-usb-sdk-cpp.dll" todir="${dist.dir}/bin/win32/"/>  
+
+		
 		
 		<copy file="./bin/run_mac_unix.sh" todir="${dist.dir}/"/>        
 		<copy file="./bin/run_mac_unix_usb.sh" todir="${dist.dir}/"/>        
@@ -35,7 +39,10 @@
 		<copy file="./bin/libmtp.so.9" todir="${build.dir}/bin/"/>        
 		<copy file="./bin/libmtp.so.9.3.0" todir="${build.dir}/bin/"/>        
 		<copy file="./bin/libRicohCameraSDKCpp.so" todir="${build.dir}/bin/"/>        
-		<copy file="./bin/usb_interface_win64.exe" todir="${build.dir}/bin/"/>     		
+		<copy file="./bin/usb_interface_win64.exe" todir="${build.dir}/bin/"/>     
+		<copy file="./bin/win32/usb_interface_win32.exe" todir="${build.dir}/bin/win32/"/>
+		<copy file="./bin/win32/camera-usb-sdk-cpp.dll" todir="${build.dir}/bin/win32/"/>  
+		
 	</target>
     <!--
 
