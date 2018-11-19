@@ -171,56 +171,52 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         {
             try
             {
-                try
+                String cwd = new File(PFRicohUSBSDKBridge.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getParent();
+
+                if (IS_WIN)
                 {
-                    String cwd = new File(PFRicohUSBSDKBridge.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getParent();
-                    
-                    if (IS_WIN)
+                    if (IS_64_BIT)
                     {
-                        if (IS_64_BIT)
-                        {
-                            conn = new ProcessBuilder(cwd + "/bin/usb_interface_win64.exe").start();
-                        }
-                        else
-                        {
-                            conn = new ProcessBuilder(cwd + "/bin/win32/usb_interface_win32.exe").start();
-                        }
+                        conn = new ProcessBuilder(cwd + "/bin/usb_interface_win64.exe").start();
                     }
                     else
                     {
-                        ProcessBuilder pb;
-                        
-                        if (IS_MAC)
-                        {
-                            pb = new ProcessBuilder(cwd + "/bin/usb_interface_macos64");
-                        }
-                        else
-                        {
-                            pb = new ProcessBuilder(cwd + "/bin/usb_interface_linux64");
-                        }
-                        
-                        Map<String, String> env = pb.environment();
-                        env.put("LD_LIBRARY_PATH", cwd + "/bin/");
-                        conn = pb.start();
+                        conn = new ProcessBuilder(cwd + "/bin/win32/usb_interface_win32.exe").start();
+                    }
+                }
+                else
+                {
+                    ProcessBuilder pb;
+
+                    if (IS_MAC)
+                    {
+                        pb = new ProcessBuilder(cwd + "/bin/usb_interface_macos64");
+                    }
+                    else
+                    {
+                        pb = new ProcessBuilder(cwd + "/bin/usb_interface_linux64");
                     }
 
-                    p = new PrintWriter(conn.getOutputStream());
-                    in = conn.getInputStream();
-                    
-                    if (!conn.isAlive())
-                    {
-                        System.out.println("Error: USB driver failed to start.");
-                        return false;
-                    }
-                    
-                    connected = true;
+                    Map<String, String> env = pb.environment();
+                    env.put("LD_LIBRARY_PATH", cwd + "/bin/");
+                    conn = pb.start();
                 }
-                
-                catch (URISyntaxException ex)
+
+                p = new PrintWriter(conn.getOutputStream());
+                in = conn.getInputStream();
+
+                if (!conn.isAlive())
                 {
+                    System.out.println("Error: USB driver failed to start.");
                     return false;
-                }  
+                }
+
+                connected = true;
             }
+            catch (URISyntaxException ex)
+            {
+                return false;
+            } 
             catch (IOException ex)
             {            
                 System.out.println(ex.toString());
