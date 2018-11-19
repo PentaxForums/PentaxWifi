@@ -51,6 +51,8 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.TableModel;
 import pfpentaxtether.gui.GuiEventListener;
 import pfpentaxtether.CameraConnectionModel;
+import pfpentaxtether.CameraConnectionModel.CONNECTION_MODE;
+import static pfpentaxtether.CameraConnectionModel.CONNECTION_MODE.MODE_WIFI;
 import static pfpentaxtether.CameraConnectionModel.KEEPALIVE;
 import pfpentaxtether.CameraException;
 import pfpentaxtether.CaptureEventListener;
@@ -100,16 +102,16 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     
     // Version number
     public static final String VERSION_NUMBER = "1.0.0 Beta 9";
-    public static final String SW_NAME = "Pentax Wi-Fi Tether by PentaxForums.com";
+    public static final String SW_NAME = "PentaxForums.com Wi-Fi & USB Tether";
     
     /**
      * Creates new form MainGui
      */
-    public MainGui()
+    public MainGui(CONNECTION_MODE mode)
     {      
         // Initialize state
         prefs = Preferences.userRoot().node(this.getClass().getName());
-        m = new CameraConnectionModel();     
+        m = new CameraConnectionModel(mode);     
         pool = Executors.newScheduledThreadPool(1);
         gl = new GuiEventListener(m, this);
         
@@ -676,7 +678,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
      */
     synchronized private void connectFailed()
     {
-        int choice = JOptionPane.showConfirmDialog(this, "Communication with the camera failed.  Please ensure you first connect to the camera's wi-fi network.  Retry?", "Error", JOptionPane.YES_OPTION);
+        int choice = JOptionPane.showConfirmDialog(this, "Communication with the camera failed.  Please ensure you first connect " + (this.m.mode == MODE_WIFI ? "to the camera's wi-fi network" : "the USB cable") + ".  Retry?", "Error", JOptionPane.YES_OPTION);
                 
         if (choice == JOptionPane.YES_OPTION)
         {
@@ -2370,7 +2372,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
 
     private void cancelPendingTransfersActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_cancelPendingTransfersActionPerformed
         
-        int num = this.m.getDownloadManager().getNumEnqueued(false);
+        int num = this.m.getDownloadManager().getNumProcessingAll() + this.m.getDownloadManager().getNumEnqueuedAll();
         
         if (num > 0)
         {

@@ -36,6 +36,7 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -47,6 +48,7 @@ import java.util.logging.Logger;
 import java.util.Date; 
 import java.text.SimpleDateFormat; 
 import java.util.Comparator;
+import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -158,19 +160,52 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     @Override
     synchronized public boolean connect()
     {
+        if (!System.getProperty("os.arch").contains("64"))
+        {
+            System.err.println("This OS does not support USB mode yet. Supported platforms: 64-bit Windows, Mac, and Linux");
+            return false;
+        }
+        
         if (!connected)
         {
             try
             {
-                conn = new ProcessBuilder("C:\\Users\\Adam\\Documents\\NetBeansProjects\\USBConn\\samples\\cli\\build\\x64\\Debug\\cli.exe").start();
+                try
+                {
+                    String cwd = new File(PFRicohUSBSDKBridge.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getParent();
+                    
+                    if (IS_WIN)
+                    {
+                        conn = new ProcessBuilder(cwd + "/bin/usb_interface_win64.exe").start();
+                    }
+                    else
+                    {
+                        ProcessBuilder pb;
+                        
+                        if (IS_MAC)
+                        {
+                            pb = new ProcessBuilder(cwd + "/bin/usb_interface_macos64");
+                        }
+                        else
+                        {
+                            pb = new ProcessBuilder(cwd + "/bin/usb_interface_linux64");
+                        }
+                        
+                        Map<String, String> env = pb.environment();
+                        env.put("LD_LIBRARY_PATH", cwd + "/bin/");
+                        conn = pb.start();
+                    }
 
-                p = new PrintWriter(conn.getOutputStream());
-                in = conn.getInputStream();
+                    p = new PrintWriter(conn.getOutputStream());
+                    in = conn.getInputStream();
 
-                connected = true;
-
-                // Flush the stream
-                //sendCommand("");
+                    connected = true;
+                    
+                } 
+                catch (URISyntaxException ex)
+                {
+                    return false;
+                }  
             }
             catch (IOException ex)
             {            
@@ -220,7 +255,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
             }
         }
         
-        System.out.println("----> Processing " + c);
+        //System.out.println("----> Processing " + c);
         
         if (!"".equals(c))
         {
@@ -231,11 +266,14 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         
         USBMessage nm = new USBMessage(readUntilChar(in, USBMessage.getMessageDelim()));
         
-        System.out.println("----< Finished " + c);
-        System.out.println(nm.toString());
+        //System.out.println("----< Finished " + c);
+        
+        if (!nm.getType().equals("Status"))
+        {
+            System.out.println(nm.toString());
+        }
         
         this.q.remove(c);
-        //System.out.println("Pop " + c);
                 
         return nm;
     }
@@ -248,28 +286,57 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         {      
             USBMessage nm = this.sendCommand(GET_STATUS);
 
-            lastStatus = new CameraStatus() {
+            lastStatus = new CameraStatus()
+            {
                 @Override
-                public int getBatteryLevel() {
+                public int getBatteryLevel()
+                {
                     return Integer.parseInt(nm.getKey("BatteryLevel"));
                 }
 
                 @Override
-                public Capture getCurrentCapture() {
-
+                public Capture getCurrentCapture()
+                {
                     return new Capture() {
                         @Override
-                        public String getId() {
+                        public String getId()
+                        {
+                            if (nm.hasKey("ID"))
+                            {
+                                return nm.getKey("ID");
+                            }
+                                   
                             return "0";
                         }
 
                         @Override
                         public CaptureState getState() {
-                            return CaptureState.COMPLETE;
+                            
+                            if (nm.getKey("Status").equals("Complete"))
+                            {
+                                return CaptureState.COMPLETE;
+                            }
+                            else
+                            {
+                                return CaptureState.EXECUTING;
+                            }
                         }
 
                         @Override
-                        public CaptureMethod getMethod() {
+                        public CaptureMethod getMethod()
+                        {
+                            if (nm.hasKey("Method"))
+                            {
+                                if (nm.getKey("Method").equals(CaptureMethod.STILL_IMAGE.toString()))
+                                {
+                                    return CaptureMethod.STILL_IMAGE;
+                                }
+                                else
+                                {
+                                    return CaptureMethod.MOVIE;
+                                }
+                            }
+                            
                             return CaptureMethod.STILL_IMAGE;
                         }
                     };                
@@ -310,12 +377,12 @@ public final class PFRicohUSBSDKBridge implements USBInterface
                 {
                     out.add(
                         new USBCamera(
-                                i,
-                                this, 
-                                nm.getKey("Manufacturer" + Integer.toString(i)),
-                                nm.getKey("Model" + Integer.toString(i)),
-                                nm.getKey("Serial Number" + Integer.toString(i)),
-                                nm.getKey("Firmware Version" + Integer.toString(i))
+                            i,
+                            this, 
+                            nm.getKey("Manufacturer" + Integer.toString(i)),
+                            nm.getKey("Model" + Integer.toString(i)),
+                            nm.getKey("Serial Number" + Integer.toString(i)),
+                            nm.getKey("Firmware Version" + Integer.toString(i))
                         )
                     );
                 }
@@ -352,9 +419,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
             sock = serverSocket;
         
             USBMessage resp = this.sendCommand(START_EVENTS + "\n" + serverSocket.getLocalPort());
-            
-            // todo - use single executor and restart
-            
+                        
             if (!resp.hasError())
             {
                 if (exec != null)
@@ -376,7 +441,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
                             {      
                                 USBMessage nm = new USBMessage(readUntilChar(inputStream, USBMessage.getMessageDelim()));
 
-                                System.out.println("EVENT "+serverSocket.getLocalPort()+" --->" + nm);
+                                // System.out.println("EVENT " + serverSocket.getLocalPort() + " --->" + nm);
 
                                 String eventName = nm.getKey("Event");
 
@@ -924,8 +989,6 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         {
             // Error handling
         }
-
-        // TODO - handle empty string
         
         return sb.toString();
     }
@@ -937,7 +1000,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     }
 
     @Override
-    public boolean setSettings(List<CaptureSetting> settingList)
+    synchronized public boolean setSettings(List<CaptureSetting> settingList)
     {
         if (settingList.size() == 1)
         {

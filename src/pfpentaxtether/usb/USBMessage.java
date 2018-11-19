@@ -19,14 +19,14 @@ public class USBMessage
     private static final char END_DELIM = '}';
     private static final String MAP_DELIM = ",";
     private static final String MAP_SEP = "=";
+    private static final Pattern PATTERN = Pattern.compile("\\{typ:([^,]+),msg:([^,]*),err:([^,]*),data:(.*)\\}", Pattern.DOTALL);
 
-    
     private String typ;
     private String err;
     private String msg;
-    private Map<String, String> m;
     
-    private static final Pattern PATTERN = Pattern.compile("\\{typ:([^,]+),msg:([^,]*),err:([^,]*),data:(.*)\\}", Pattern.DOTALL);
+    private final Map<String, String> m;
+    private final String rawData;
         
     /**
      * Parse the message from input string
@@ -34,6 +34,8 @@ public class USBMessage
      */
     public USBMessage (String s)
     {
+        rawData = s;
+        
         s = s.trim();
         
         typ = "";
@@ -155,9 +157,27 @@ public class USBMessage
         return END_DELIM;
     }
     
+    /**
+     * Gets the original message (for debugging)
+     * @return 
+     */
+    public String getRawData()
+    {
+        return rawData;
+    }
+    
     @Override
     public String toString()
     {
-        return this.typ + " err: " + this.err + " msg: " + this.msg + " data: " + this.m.toString();
+        String data = (this.m.size() > 0 ? " DATA: " + this.m.toString() : "");
+        
+        if (this.err.length() > 0)
+        {
+            return "    USB " +this.typ + " ERROR " + this.err + data ;
+        }
+        else
+        {
+            return "    USB " + this.typ + " " + this.msg + data;
+        }
     }
 }

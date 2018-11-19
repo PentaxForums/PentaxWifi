@@ -181,6 +181,15 @@ public class ImageDownloadManager
     }
     
     /**
+     * Gets the total number of images waiting to download
+     * @return 
+     */
+    public int getNumEnqueuedAll()
+    {
+        return getNumEnqueued(true) + getNumEnqueued(false);
+    }
+    
+    /**
      * Gets the number of images waiting to download
      * @param isThumbnail
      * @return 

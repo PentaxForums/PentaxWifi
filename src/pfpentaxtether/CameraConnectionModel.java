@@ -73,6 +73,9 @@ public class CameraConnectionModel
     private ScheduledExecutorService capturePool;
     private CameraEventListener cl;
     
+    public static enum CONNECTION_MODE {MODE_WIFI, MODE_USB};
+    public final CONNECTION_MODE mode;
+    
     // Track the most recently queued photo so we can roll back in case of failure
     private FuturePhoto p;
     
@@ -96,8 +99,9 @@ public class CameraConnectionModel
         
     /**
      * Creates the model with empty state 
+     * @param mode
      */
-    public CameraConnectionModel()
+    public CameraConnectionModel(CONNECTION_MODE mode)
     {
         this.imageQueue = new LinkedList<>();
         this.capturedImages = new ArrayList<>();
@@ -105,6 +109,7 @@ public class CameraConnectionModel
         this.queueLocked = false;
         this.capturePool = Executors.newScheduledThreadPool(1);
         this.dm = new ImageDownloadManager(this);
+        this.mode = mode;
         
         this.cl = new CameraEventListener()
         {
@@ -525,10 +530,29 @@ public class CameraConnectionModel
 
             if (!toChange.isEmpty())
             {
-                for (CaptureSetting s : toChange)
+                if (mode == CONNECTION_MODE.MODE_WIFI)
                 {
-                    // We could pass in toChange without the loop, but this seems to crash the wireless SDK...
-                    Response r = getCam().setCaptureSettings(Arrays.asList(s));
+                    // Setting the settings in bulk seems to crash the SDK...
+                    for (CaptureSetting s : toChange)
+                    {
+                        Response r = getCam().setCaptureSettings(Arrays.asList(s));
+
+                        if (r != null)
+                        {
+                            if (r.getResult() == Result.ERROR)
+                            {
+                                throw new CameraException("Settings configuration FAILED: " + r.getErrors().get(0).getMessage());
+                            }
+                        }
+                        else
+                        {
+                            throw new CameraException("Settings configuration FAILED: no response from camera.");
+                        }
+                    }
+                }
+                else
+                {
+                    Response r = getCam().setCaptureSettings(toChange);
 
                     if (r != null)
                     {
@@ -603,9 +627,16 @@ public class CameraConnectionModel
     {
         disconnect();
         
-        List<CameraDevice> detectedDevices = CameraDeviceDetector.detect(DeviceInterface.WLAN);
+        List<CameraDevice> detectedDevices;
         
-        //List<CameraDevice> detectedDevices = USBCameraDeviceDetector.detect(USBCameraDeviceDetector.PF_USB_BRIDGE);
+        if (mode == CONNECTION_MODE.MODE_WIFI)
+        {
+            detectedDevices = CameraDeviceDetector.detect(DeviceInterface.WLAN);
+        }
+        else
+        {
+            detectedDevices = USBCameraDeviceDetector.detect(USBCameraDeviceDetector.PF_USB_BRIDGE);
+        }
         
         if (!detectedDevices.isEmpty())
         {

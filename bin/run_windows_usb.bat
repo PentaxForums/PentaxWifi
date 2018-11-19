@@ -1,0 +1,1 @@
+java -jar PentaxWifi.jar usb

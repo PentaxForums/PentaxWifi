@@ -1,4 +1,8 @@
 
+import pfpentaxtether.CameraConnectionModel;
+import pfpentaxtether.CameraConnectionModel.CONNECTION_MODE;
+import static pfpentaxtether.CameraConnectionModel.CONNECTION_MODE.MODE_USB;
+import static pfpentaxtether.CameraConnectionModel.CONNECTION_MODE.MODE_WIFI;
 import pfpentaxtether.gui.MainGui;
 
 /*
@@ -37,10 +41,21 @@ public class startGui
         //m.focus();            
         //m.captureStillImage(false);
         
+        final CONNECTION_MODE mode;
+        
+        if (args.length == 1 && args[0].equals("usb"))
+        {
+            mode = MODE_USB;
+        }
+        else
+        {
+            mode = MODE_WIFI;
+        }
+        
         java.awt.EventQueue.invokeLater(new Runnable()
         {
             public void run() {
-                new MainGui().setVisible(true);
+                new MainGui(mode).setVisible(true);
             }
         });
     }

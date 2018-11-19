@@ -10,6 +10,33 @@
 <project name="PentaxWifi" default="default" basedir=".">
     <description>Builds, tests, and runs the project PentaxWifi.</description>
     <import file="nbproject/build-impl.xml"/>
+	<target name="-post-compile">
+		<copy file="./bin/camera-usb-sdk-cpp.dll" todir="${dist.dir}/bin/"/>  
+		<copy file="./bin/usb_interface_linux64" todir="${dist.dir}/bin/"/>        
+		<copy file="./bin/libmtp.so" todir="${dist.dir}/bin/"/>        
+		<copy file="./bin/libmtp.so.9" todir="${dist.dir}/bin/"/>        
+		<copy file="./bin/libmtp.so.9.3.0" todir="${dist.dir}/bin/"/>        
+		<copy file="./bin/libRicohCameraSDKCpp.so" todir="${dist.dir}/bin/"/>        
+		<copy file="./bin/usb_interface_win64.exe" todir="${dist.dir}/bin/"/>   
+		
+		<copy file="./bin/run_mac_unix.sh" todir="${dist.dir}/"/>        
+		<copy file="./bin/run_mac_unix_usb.sh" todir="${dist.dir}/"/>        
+		<copy file="./bin/run_windows.bat" todir="${dist.dir}/"/>        
+		<copy file="./bin/run_windows_usb.bat" todir="${dist.dir}/"/>   
+		
+		<copy file="./bin/libcamera-usb-sdk-cpp.dylib" todir="${dist.dir}/bin/"/>  
+		<copy file="./bin/usb_interface_macos64" todir="${dist.dir}/bin/"/>  
+		<copy file="./bin/libcamera-usb-sdk-cpp.dylib" todir="${build.dir}/bin/"/>  
+		<copy file="./bin/usb_interface_macos64" todir="${build.dir}/bin/"/>  
+
+		<copy file="./bin/camera-usb-sdk-cpp.dll" todir="${build.dir}/bin/"/>  
+		<copy file="./bin/usb_interface_linux64" todir="${build.dir}/bin/"/>        
+		<copy file="./bin/libmtp.so" todir="${build.dir}/bin/"/>        
+		<copy file="./bin/libmtp.so.9" todir="${build.dir}/bin/"/>        
+		<copy file="./bin/libmtp.so.9.3.0" todir="${build.dir}/bin/"/>        
+		<copy file="./bin/libRicohCameraSDKCpp.so" todir="${build.dir}/bin/"/>        
+		<copy file="./bin/usb_interface_win64.exe" todir="${build.dir}/bin/"/>     		
+	</target>
     <!--
 
     There exist several targets which are by default empty and which can be 
