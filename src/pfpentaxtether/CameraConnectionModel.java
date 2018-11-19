@@ -109,24 +109,33 @@ public class CameraConnectionModel
         this.cl = new CameraEventListener()
         {
             @Override
-            synchronized public void captureComplete(CameraDevice sender, Capture capture)
-            {                    
-                if (capture != null)
+             public void captureComplete(CameraDevice sender, Capture capture)
+            {     
+                new Thread(() ->
                 {
-                    captureState.put(capture.getId(), true);
-                }
+                    if (capture != null)
+                    {
+                        captureState.put(capture.getId(), true);
+                    }
+                }).start();
             }   
 
             @Override
-            synchronized public void imageStored(CameraDevice sender, CameraImage image)
+            public void imageStored(CameraDevice sender, CameraImage image)
             {
-                capturedImages.add(image);
+                new Thread(() ->
+                {
+                    capturedImages.add(image);
+                }).start();
             }
 
             @Override
-            synchronized public void deviceDisconnected(CameraDevice sender)
+            public void deviceDisconnected(CameraDevice sender)
             {   
-                disconnect();
+                new Thread(() ->
+                {
+                    disconnect();
+                }).start();
             }
         };
     }
@@ -234,11 +243,11 @@ public class CameraConnectionModel
      * @param p
      * @throws CameraException 
      */
-    synchronized public void enqueuePhoto(FuturePhoto p) throws CameraException
+    synchronized public void enqueuePhoto(FuturePhoto img) throws CameraException
     {
         if (!queueLocked)
         {
-            this.imageQueue.add(p);
+            this.imageQueue.add(img);
         }
         else
         {
@@ -259,7 +268,8 @@ public class CameraConnectionModel
             // Restore uncaptured image
             if (p != null)
             {
-                this.imageQueue.addFirst(p);
+                //The photo would have already been shot, so actually skip this...
+                //this.imageQueue.addFirst(p);
                 p = null;
             }
             
@@ -468,11 +478,6 @@ public class CameraConnectionModel
     public Capture captureImageWithSettings(Boolean focus, List<CaptureSetting> settings) throws CameraException
     {
         setCaptureSettings(settings);
-        
-        /*for (CaptureSetting s : settings)
-        {
-            setCaptureSettings(Arrays.asList(s));
-        }*/
                 
         return captureStillImage(focus);
     }
@@ -499,13 +504,13 @@ public class CameraConnectionModel
         if (isConnected())
         {  
             // Get the latest settings
-            this.refreshCurrentSettings();     
+            /*this.refreshCurrentSettings();     
             
-            // Figure out which settings are actually being updated
             for (CaptureSetting s : settings)
             {
                 if (s == null) continue;
                 
+                // Figure out which settings are actually being updated
                 for (CaptureSetting current : new CaptureSetting[] {this.av, this.tv, this.ev, this.iso})
                 {
                     if (s.getName().equals(current.getName()) && !s.getValue().equals(current.getValue()))
@@ -513,23 +518,29 @@ public class CameraConnectionModel
                         toChange.add(s);
                         break;
                     }
-                }
-            }
+                }                
+            }*/
+            
+            toChange.addAll(settings);
 
             if (!toChange.isEmpty())
             {
-                Response r = getCam().setCaptureSettings(toChange);
-                
-                if (r != null)
+                for (CaptureSetting s : toChange)
                 {
-                    if (r.getResult() == Result.ERROR)
+                    // We could pass in toChange without the loop, but this seems to crash the wireless SDK...
+                    Response r = getCam().setCaptureSettings(Arrays.asList(s));
+
+                    if (r != null)
                     {
-                        throw new CameraException("Settings configuration FAILED: " + r.getErrors().get(0).getMessage());
+                        if (r.getResult() == Result.ERROR)
+                        {
+                            throw new CameraException("Settings configuration FAILED: " + r.getErrors().get(0).getMessage());
+                        }
                     }
-                }
-                else
-                {
-                    throw new CameraException("Settings configuration FAILED: no response from camera.");
+                    else
+                    {
+                        throw new CameraException("Settings configuration FAILED: no response from camera.");
+                    }
                 }
             }
         }
@@ -538,10 +549,10 @@ public class CameraConnectionModel
             throw new CameraException("Not connected");
         }
         
-        if (!toChange.isEmpty())
+        /*if (!toChange.isEmpty())
         {
             this.refreshCurrentSettings();
-        }
+        }*/
     }
     
     /**
@@ -588,15 +599,13 @@ public class CameraConnectionModel
      * Attempts to establish a connection to the camera
      * @throws pfpentaxtether.CameraException
      */
-    synchronized public final void connect() throws CameraException
+    synchronized public final void connect(CameraEventListener el) throws CameraException
     {
         disconnect();
         
-        //List<CameraDevice> detectedDevices =
-        //    CameraDeviceDetector.detect(DeviceInterface.WLAN);
+        List<CameraDevice> detectedDevices = CameraDeviceDetector.detect(DeviceInterface.WLAN);
         
-        List<CameraDevice> detectedDevices =
-            USBCameraDeviceDetector.detect(USBCameraDeviceDetector.PF_USB_BRIDGE);
+        //List<CameraDevice> detectedDevices = USBCameraDeviceDetector.detect(USBCameraDeviceDetector.PF_USB_BRIDGE);
         
         if (!detectedDevices.isEmpty())
         {
@@ -612,7 +621,7 @@ public class CameraConnectionModel
                 try
                 {
                     Thread.sleep(STARTUP_RETRY);
-                    connect();
+                    connect(el);
                 }
                 catch (InterruptedException ex) {}
                 
@@ -623,14 +632,19 @@ public class CameraConnectionModel
             }
                         
             refreshCurrentSettings();
-            
-            
+                    
             // Add local listener for completed captures
             this.removeListener(cl);
             this.addListener(cl);
             
+            if (el != null)
+            {
+                this.removeListener(el);
+                this.addListener(el);
+            }
+            
             // Start keepalive thread
-            final ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor();
+            /*final ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor();
             exec.scheduleWithFixedDelay(() -> {
                 try
                 {                 
@@ -650,7 +664,7 @@ public class CameraConnectionModel
                     disconnect();
                     exec.shutdownNow();
                 }
-            }, KEEPALIVE, KEEPALIVE, TimeUnit.MILLISECONDS);
+            }, KEEPALIVE, KEEPALIVE, TimeUnit.MILLISECONDS);*/
         }    
         
         if (!isConnected())

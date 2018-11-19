@@ -338,7 +338,7 @@ public class ImageDownloadManager
                                 toDownloadThumbs.remove(i);
                             }
                             
-                            throw new IOException("Failed to download file: " + response.getErrors().toString());
+                            throw new IOException("Failed to download file: " + response.getErrors().get(0).getMessage());
                         }
                         else
                         {      
@@ -359,7 +359,7 @@ public class ImageDownloadManager
                                 toDownloadImages.remove(i);
                             }
                             
-                            throw new IOException("Failed to download file: " + response.getErrors().toString());
+                            throw new IOException("Failed to download file: " + response.getErrors().get(0).getMessage());
                         }
                         else
                         {                     

@@ -76,12 +76,12 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private Boolean doTransferFiles;
     private Boolean doTransferRawFiles;
     private Boolean doTransferThumbnails;
+    private Boolean doSyncCameraSettings;
     private Boolean doAutoReconnect;
-    private Boolean doClearOnAbort;
-    private Boolean doResetCaptureQueue;
     private ScheduledExecutorService pool;
     private LiveViewGui lv;
     private Boolean initializing;
+    private GuiEventListener gl;
     
     // Application icon
     public static final String ICON = "resources/appicon.png";
@@ -96,10 +96,10 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     public static final ComboItem DEFAULT_COMBO_ITEM = new ComboItem("---", null);
     
     // Delay between refresh of camera status (ms) (does not block)
-    public static final int STATUS_REFRESH = 2000;
+    public static final int STATUS_REFRESH = 1500;
     
     // Version number
-    public static final String VERSION_NUMBER = "1.0.0 Beta 8";
+    public static final String VERSION_NUMBER = "1.0.0 Beta 9";
     public static final String SW_NAME = "Pentax Wi-Fi Tether by PentaxForums.com";
     
     /**
@@ -111,6 +111,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         prefs = Preferences.userRoot().node(this.getClass().getName());
         m = new CameraConnectionModel();     
         pool = Executors.newScheduledThreadPool(1);
+        gl = new GuiEventListener(m, this);
         
         // Set look and feel - prefer OS
         try
@@ -142,7 +143,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         
         // Initialize connection
         connect();
-        m.addListener(new GuiEventListener(m, this));
         
         // Initialize GUI state
         
@@ -309,9 +309,8 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
      */
     private void loadPrefs()
     {
-        doClearOnAbort = prefs.getBoolean("doClearOnAbort", false);
-        doResetCaptureQueue = prefs.getBoolean("doResetCaptureQueue", false);
         doTransferThumbnails = prefs.getBoolean("doTransferThumbnails", true);
+        doSyncCameraSettings = prefs.getBoolean("doSyncCameraSettings", false);
         doTransferFiles = prefs.getBoolean("doTransferFiles", false);
         doTransferRawFiles = prefs.getBoolean("doTransferRawFiles", false);
         saveFilePath = prefs.get("saveFilePath", DEFAULT_PATH);
@@ -338,8 +337,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         this.transferFiles.setSelected(doTransferFiles);
         this.transferThumbnails.setSelected(doTransferThumbnails);
         this.autoReconnect.setSelected(doAutoReconnect);
-        this.clearOnAbort.setSelected(doClearOnAbort);
-        this.resetCaptureQueue.setSelected(doResetCaptureQueue);
+        this.syncCameraSettings.setSelected(doSyncCameraSettings);
     }
     
     /**
@@ -487,9 +485,28 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         
         if (!captureOk)
         {
-            JOptionPane.showMessageDialog(this, 
-                String.format("Shooting interrupted on frame %d.  Possible camera timeout - try reconnecting.", index)
-            );
+            if (this.doAutoReconnect)
+            {
+                System.out.println(String.format("Shooting interrupted on frame %d.  Auto reconnecting and restarting.", index));
+
+                new Thread(() -> 
+                {
+                    m.disconnect();
+                    autoReconnect(false); 
+                    updateBattery();
+                    
+                    if (!m.isQueueEmpty())
+                    {
+                        processQueueButtonActionPerformed(null);   
+                    }
+                }).start();
+            }
+            else
+            {
+                JOptionPane.showMessageDialog(this, 
+                    String.format("Shooting interrupted on frame %d.  Possible camera timeout - try reconnecting.", index)
+                );   
+            }
         }
         else if (this.m.isQueueProcessing())
         {
@@ -509,9 +526,12 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         {
             this.restartDownloads();
         }
-             
-        endProcessing();
-        updateBattery();
+        
+        if (captureOk || !doAutoReconnect)
+        {     
+            endProcessing();
+            updateBattery();
+        }
     }
     
     /**
@@ -521,6 +541,12 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     {
         if (this.m.isQueueEmpty() || !this.m.isQueueProcessing())
         {
+            // Update settings in dropdowns after queue is finished
+            if (this.queueProgressBar.isVisible() == true && this.m.isQueueEmpty() && this.doSyncCameraSettings)
+            {
+                refreshButtonActionPerformed(null);
+            }
+            
             this.processQueueButton.setEnabled(true);
             this.queueProgressBar.setVisible(false);
             
@@ -532,12 +558,15 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     /**
      * Automatically tries to reestablish a connection to the camera
      */
-    synchronized private void autoReconnect()
+    synchronized private void autoReconnect(boolean restartDownloads)
     {
         JOptionPane pane = new JOptionPane("Please wait, attempting to automatically reconnect.  Exit program instead?",  JOptionPane.PLAIN_MESSAGE, JOptionPane.DEFAULT_OPTION);
         JDialog getTopicDialog =  pane.createDialog(this, "Connection Lost");
 
-        abortTransfer();
+        if (restartDownloads)
+        {
+            abortTransfer();
+        }
         
         (new Thread()
         {  
@@ -548,7 +577,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 {
                     try
                     {
-                        m.connect();
+                        m.connect(gl);
                         try
                         {
                             Thread.sleep(100);
@@ -591,7 +620,11 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         }      
         
         restartLv();
-        restartDownloads();
+        
+        if (restartDownloads)
+        {
+            restartDownloads();
+        }
     }
     
     /**
@@ -616,7 +649,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     {        
         if (doAutoReconnect)
         {
-            autoReconnect();   
+            autoReconnect(true);   
         }
         else
         {
@@ -651,7 +684,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             {
                 if (!m.isConnected())
                 {
-                    m.connect();
+                    this.m.connect(gl);
                 }
             }
             catch (CameraException ex)
@@ -676,7 +709,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     {
         try
         {
-            this.m.connect();    
+            this.m.connect(gl);   
             
             if (this.cameraNameLabel != null)
             {
@@ -771,11 +804,11 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         int battery = this.m.getCameraBattery();
         this.batteryLevel.setBackground(Color.WHITE);
 
-        if (battery > 66)
+        if (battery > 67)
         {
             this.batteryLevel.setForeground(Color.GREEN);
         }
-        else if (battery > 33)
+        else if (battery > 34)
         {
             this.batteryLevel.setForeground(Color.YELLOW);
         }
@@ -860,14 +893,16 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         restartMenuItem = new javax.swing.JMenuItem();
         exitMenuItem = new javax.swing.JMenuItem();
         editMenu = new javax.swing.JMenu();
+        jMenuItem1 = new javax.swing.JMenuItem();
         abortIntervalMenuItem = new javax.swing.JMenuItem();
+        jSeparator1 = new javax.swing.JPopupMenu.Separator();
         abortTransferMenuItem = new javax.swing.JMenuItem();
         resumeDownloadsMenu = new javax.swing.JMenuItem();
+        cancelPendingTransfers = new javax.swing.JMenuItem();
         optionsMenu = new javax.swing.JMenu();
         transferThumbnails = new javax.swing.JCheckBoxMenuItem();
         autoReconnect = new javax.swing.JCheckBoxMenuItem();
-        resetCaptureQueue = new javax.swing.JCheckBoxMenuItem();
-        clearOnAbort = new javax.swing.JCheckBoxMenuItem();
+        syncCameraSettings = new javax.swing.JCheckBoxMenuItem();
         helpMenu = new javax.swing.JMenu();
         troubleshootingMenuItem = new javax.swing.JMenuItem();
         aboutMenuItem = new javax.swing.JMenuItem();
@@ -1362,7 +1397,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             }
         });
 
-        refreshButton.setText("Refresh Settings");
+        refreshButton.setText("Get Settings from Camera");
         refreshButton.setToolTipText("Sync available settings after changing camera modes.");
         refreshButton.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -1520,6 +1555,14 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
 
         editMenu.setText("Edit");
 
+        jMenuItem1.setText("Pause Queue");
+        jMenuItem1.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jMenuItem1ActionPerformed(evt);
+            }
+        });
+        editMenu.add(jMenuItem1);
+
         abortIntervalMenuItem.setText("Abort Queue/Capture");
         abortIntervalMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -1527,8 +1570,9 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             }
         });
         editMenu.add(abortIntervalMenuItem);
+        editMenu.add(jSeparator1);
 
-        abortTransferMenuItem.setText("Abort Active Image Transfers");
+        abortTransferMenuItem.setText("Pause Image Transfers");
         abortTransferMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 abortTransferMenuItemActionPerformed(evt);
@@ -1536,13 +1580,21 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         });
         editMenu.add(abortTransferMenuItem);
 
-        resumeDownloadsMenu.setText("Resume Interrupted Transfers");
+        resumeDownloadsMenu.setText("Resume Pending Transfers");
         resumeDownloadsMenu.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 resumeDownloadsMenuActionPerformed(evt);
             }
         });
         editMenu.add(resumeDownloadsMenu);
+
+        cancelPendingTransfers.setText("Cancel Pending Transfers");
+        cancelPendingTransfers.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                cancelPendingTransfersActionPerformed(evt);
+            }
+        });
+        editMenu.add(cancelPendingTransfers);
 
         mainMenuBar.add(editMenu);
 
@@ -1558,7 +1610,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         optionsMenu.add(transferThumbnails);
 
         autoReconnect.setSelected(true);
-        autoReconnect.setText("Auto Reconnect");
+        autoReconnect.setText("Auto Reconnect / Resume Queue");
         autoReconnect.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 autoReconnectActionPerformed(evt);
@@ -1566,23 +1618,14 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         });
         optionsMenu.add(autoReconnect);
 
-        resetCaptureQueue.setSelected(true);
-        resetCaptureQueue.setText("Reset Capture Queue on Abort");
-        resetCaptureQueue.addActionListener(new java.awt.event.ActionListener() {
+        syncCameraSettings.setSelected(true);
+        syncCameraSettings.setText("Live Sync Camera Settings");
+        syncCameraSettings.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
-                resetCaptureQueueActionPerformed(evt);
+                syncCameraSettingsActionPerformed(evt);
             }
         });
-        optionsMenu.add(resetCaptureQueue);
-
-        clearOnAbort.setSelected(true);
-        clearOnAbort.setText("Remove Pending Transfers on Abort");
-        clearOnAbort.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                clearOnAbortActionPerformed(evt);
-            }
-        });
-        optionsMenu.add(clearOnAbort);
+        optionsMenu.add(syncCameraSettings);
 
         mainMenuBar.add(optionsMenu);
 
@@ -1658,11 +1701,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         // Enqueue items
         CameraSettingTableModel t = (CameraSettingTableModel) this.queueTable.getModel();
           
-        if (doResetCaptureQueue)
-        {
-            m.emptyQueue();
-        }
-        
         try
         {
             if (m.isQueueEmpty())
@@ -1803,7 +1841,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         // Cannot delete if the queue is not empty
         else
         {
-            JOptionPane.showMessageDialog(this, String.format("There are %d pending captures in the queue.\n\nProcess queue or abort via Edit menu (ensure Reset option is selected in the Options Menu).", this.m.getQueueSize()));
+            JOptionPane.showMessageDialog(this, String.format("There are %d pending captures in the queue.\n\nProcess queue or abort via Edit menu.", this.m.getQueueSize()));
         }
     }
     
@@ -1857,65 +1895,71 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
      * Generates a list of CaptureSettings based on UI state
      * @return 
      */
-    private List <CaptureSetting> getSettings()
+    private List <CaptureSetting> getSettings(Object src)
     {
         List <CaptureSetting> l = new ArrayList<>();
         
         Object c;
         
+        ComboItem source = null;
+        if (src != null)
+        {   
+            source = (ComboItem) src;
+        }
+        
         try
         {
             c = ((ComboItem) this.avMenu.getSelectedItem()).getValue();
-            if (c != null)
+            if (c != null && (source == null || c == source.getValue()))
             {
                 l.add((CaptureSetting) c);
             }       
         }
         catch (Exception e)
         {
-            
+
         }    
         
         try
         {
             c = ((ComboItem) this.tvMenu.getSelectedItem()).getValue();
-            if (c != null)
+            if (c != null && (source == null || c == source.getValue()))
             {
                 l.add((CaptureSetting) c);
             }
         }
         catch (Exception e)
         {
-            
-        } 
-                
+
+        }
+
         try
         {
             c = ((ComboItem) this.isoMenu.getSelectedItem()).getValue();
-            if (c != null)
+            if (c != null && (source == null || c == source.getValue()))
             {
                 l.add((CaptureSetting) c);
             }
         }
         catch (Exception e)
         {
-            
+
         } 
-        
+
         try
         {
             c = ((ComboItem) this.evMenu.getSelectedItem()).getValue();
-            if (c != null)
+            if (c != null && (source == null || c == source.getValue()))
             {
-                if (!c.equals(ExposureCompensation.EC0_0))
-                {
-                    l.add((CaptureSetting) c);
-                }
+                //if (!c.equals(ExposureCompensation.EC0_0))
+                //{
+                l.add((CaptureSetting) c);
+                //}
             }
         }
         catch (Exception e)
         {
-            
+
         } 
         
         return l;
@@ -1924,7 +1968,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     /**
      * Sends the currently selected shooting settings to the camera
      */
-    private void sendSettingsToCamera()
+    private void sendSettingsToCamera(Object source)
     {
         if (!this.initializing)
         {
@@ -1934,7 +1978,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 {
                     try
                     {
-                        m.setCaptureSettings(getSettings());
+                        m.setCaptureSettings(getSettings(source));
                     }
                     catch (CameraException ex)
                     {
@@ -1972,7 +2016,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         {
             try
             {
-                m.setCaptureSettings(getSettings());
+                m.setCaptureSettings(getSettings(null));
                 m.captureStillImage(false);                
             }
             catch (CameraException ex)
@@ -2207,11 +2251,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         {
             this.m.getDownloadManager().abortDownloading(this);
             
-            if (this.doClearOnAbort)
-            {
-                this.m.getDownloadManager().clearImageQueue();
-            }
-            
             refreshTransmitting();  
         }
     }
@@ -2224,7 +2263,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             {
                 //abortTransfer();
                 m.disconnect();
-                autoReconnect(); 
+                autoReconnect(true); 
             }
         }).start();
     }//GEN-LAST:event_restartMenuItemActionPerformed
@@ -2281,10 +2320,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             loaderLabelPhoto.setVisible(false);
         }
         
-        if (doResetCaptureQueue)
-        {
-            m.emptyQueue();
-        }
+        m.emptyQueue();
     }//GEN-LAST:event_abortIntervalMenuItemActionPerformed
 
     private void startLiveViewMenuActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_startLiveViewMenuActionPerformed
@@ -2315,9 +2351,10 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     }//GEN-LAST:event_startLiveViewMenuActionPerformed
 
     private void dropDownStateChanged(java.awt.event.ItemEvent evt) {//GEN-FIRST:event_dropDownStateChanged
-        if (evt.getStateChange() == ItemEvent.SELECTED)
+        
+        if (evt.getStateChange() == ItemEvent.SELECTED && doSyncCameraSettings != null && doSyncCameraSettings)
         {
-            sendSettingsToCamera();
+            sendSettingsToCamera(evt.getItem());
         }
     }//GEN-LAST:event_dropDownStateChanged
 
@@ -2325,17 +2362,43 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         restartDownloads();
     }//GEN-LAST:event_resumeDownloadsMenuActionPerformed
 
-    private void clearOnAbortActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_clearOnAbortActionPerformed
-        prefs.putBoolean("doClearOnAbort", this.clearOnAbort.isSelected());
+    private void syncCameraSettingsActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_syncCameraSettingsActionPerformed
+        prefs.putBoolean("doSyncCameraSettings", this.syncCameraSettings.isSelected());
 
         loadPrefs();
-    }//GEN-LAST:event_clearOnAbortActionPerformed
+    }//GEN-LAST:event_syncCameraSettingsActionPerformed
 
-    private void resetCaptureQueueActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_resetCaptureQueueActionPerformed
-        prefs.putBoolean("doResetCaptureQueue", this.resetCaptureQueue.isSelected());
+    private void cancelPendingTransfersActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_cancelPendingTransfersActionPerformed
+        
+        int num = this.m.getDownloadManager().getNumEnqueued(false);
+        
+        if (num > 0)
+        {
+            int choice = JOptionPane.showConfirmDialog(this, "This will permanently stop the download of " + num + " pending transfers.  Proceed?", "Please Confirm", JOptionPane.YES_OPTION);
 
-        loadPrefs();
-    }//GEN-LAST:event_resetCaptureQueueActionPerformed
+            if (choice == JOptionPane.YES_OPTION)
+            {
+                this.abortTransfer();
+                this.m.getDownloadManager().clearImageQueue();
+            }
+        }
+        else
+        {
+            JOptionPane.showMessageDialog(this, "There are no pending transfers.");
+        }
+    }//GEN-LAST:event_cancelPendingTransfersActionPerformed
+
+    private void jMenuItem1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jMenuItem1ActionPerformed
+        
+        if (this.m.isQueueProcessing())
+        {
+            this.autoReconnect.setSelected(false);
+            autoReconnectActionPerformed(null);
+            
+            this.m.abortQueue();
+            endProcessing();
+        }
+    }//GEN-LAST:event_jMenuItem1ActionPerformed
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JRadioButton Seconds;
@@ -2352,9 +2415,9 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private javax.swing.JLabel cameraFirmwareLabel;
     private javax.swing.JLabel cameraNameLabel;
     private javax.swing.JLabel cameraSerialLabel;
+    private javax.swing.JMenuItem cancelPendingTransfers;
     private javax.swing.JButton captureButton;
     private javax.swing.JLabel captureQueueTextLabel;
-    private javax.swing.JCheckBoxMenuItem clearOnAbort;
     private javax.swing.JButton decAv;
     private javax.swing.JButton decEV;
     private javax.swing.JButton decISO;
@@ -2378,9 +2441,11 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private javax.swing.JComboBox<String> isoMenu;
     private javax.swing.JPanel isoPanel;
     private javax.swing.JLabel isoTextLabel;
+    private javax.swing.JMenuItem jMenuItem1;
     private javax.swing.JMenuItem jMenuItem11;
     private javax.swing.JPanel jPanel6;
     private javax.swing.JScrollPane jScrollPane2;
+    private javax.swing.JPopupMenu.Separator jSeparator1;
     private javax.swing.JLabel loaderLabelPhoto;
     private javax.swing.JLabel loaderLabelTransfer;
     private javax.swing.JMenuBar mainMenuBar;
@@ -2393,13 +2458,13 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private javax.swing.JProgressBar queueProgressBar;
     private javax.swing.JTable queueTable;
     private javax.swing.JButton refreshButton;
-    private javax.swing.JCheckBoxMenuItem resetCaptureQueue;
     private javax.swing.JMenuItem restartMenuItem;
     private javax.swing.JMenuItem resumeDownloadsMenu;
     private javax.swing.JMenuItem saveMenuItem;
     private javax.swing.JLabel secondsTextLabel;
     private javax.swing.JButton selectFilePath;
     private javax.swing.JMenuItem startLiveViewMenu;
+    private javax.swing.JCheckBoxMenuItem syncCameraSettings;
     private javax.swing.JLabel thumbnailArea;
     private javax.swing.JSlider timeSlider;
     private javax.swing.JPanel topPanel;

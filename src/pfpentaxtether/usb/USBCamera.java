@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -60,10 +61,10 @@ public final class USBCamera implements CameraDevice
     private int index;
     private boolean connected;
     private List<CameraEventListener> listeners;
-    private static final int POLL_FOR_EVENTS = 1000;
     private ScheduledExecutorService exec;
     private static final int SOCKET_BUFFER_SIZE = 50000;
     private ServerSocket sock;
+    ExecutorService liveViewExec;
     
     /**
      *
@@ -240,59 +241,68 @@ public final class USBCamera implements CameraDevice
                         
             if (this.iface.startLiveView(serverSocket.getLocalPort()))
             {
-                new Thread(() -> {
-                    try 
-                    {   
-                        Socket socket = serverSocket.accept();
-                        InputStream inputStream = socket.getInputStream();
-                        
-                        while (true)
-                        {                        
-                            // Read a fixed amount of data
-                            byte[] sizeAr = new byte[4];
-                            inputStream.read(sizeAr);
-                            byte[] imageAr = new byte[SOCKET_BUFFER_SIZE];
-                            inputStream.read(imageAr);
-                        
-                            try
-                            {
-                                int size = ByteBuffer.wrap(sizeAr).asIntBuffer().get();
+                if (liveViewExec != null)
+                {
+                    liveViewExec.shutdownNow();
+                }
+                
+                liveViewExec = Executors.newSingleThreadExecutor();
+                liveViewExec.submit(
+                
+                    new Thread(() -> {
+                        try 
+                        {   
+                            Socket socket = serverSocket.accept();
+                            InputStream inputStream = socket.getInputStream();
 
-                                final byte[] imageAr2 = Arrays.copyOfRange(imageAr, 0, size);
+                            while (true)
+                            {                        
+                                // Read a fixed amount of data
+                                byte[] sizeAr = new byte[4];
+                                inputStream.read(sizeAr);
+                                byte[] imageAr = new byte[SOCKET_BUFFER_SIZE];
+                                inputStream.read(imageAr);
 
-      
-                                if (imageAr[size - 1] == -39)
-                                {                        
-                                    new Thread(() -> {
-                                        listeners.forEach((CameraEventListener cel) ->
-                                        { 
-                                            cel.liveViewFrameUpdated(this, imageAr2);
-                                        });
-                                    }).start();
+                                try
+                                {
+                                    int size = ByteBuffer.wrap(sizeAr).asIntBuffer().get();
+
+                                    final byte[] imageAr2 = Arrays.copyOfRange(imageAr, 0, size);
+
+
+                                    if (imageAr[size - 1] == -39)
+                                    {                        
+                                        new Thread(() -> {
+                                            listeners.forEach((CameraEventListener cel) ->
+                                            { 
+                                                cel.liveViewFrameUpdated(this, imageAr2);
+                                            });
+                                        }).start();
+                                    }
+                                }
+                                catch(java.lang.ArrayIndexOutOfBoundsException e)
+                                {
+
+                                }
+                                catch(java.lang.IllegalArgumentException e)
+                                {
+
                                 }
                             }
-                            catch(java.lang.ArrayIndexOutOfBoundsException e)
-                            {
-                                
-                            }
-                            catch(java.lang.IllegalArgumentException e)
-                            {
-                                
-                            }
                         }
-                    }
-                    catch (Exception ex)
-                    {    
-                        try
-                        {
-                            serverSocket.close();
-                        } 
-                        catch (IOException ex1)
-                        {
-                            
-                        }
-                    }                
-                }).start();
+                        catch (Exception ex)
+                        {    
+                            try
+                            {
+                                serverSocket.close();
+                            } 
+                            catch (IOException ex1)
+                            {
+
+                            }
+                        }                
+                    })
+                );
                 
                 return new Response(
                     Result.OK

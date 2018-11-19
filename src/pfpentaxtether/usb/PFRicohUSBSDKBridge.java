@@ -48,6 +48,9 @@ import java.util.Date;
 import java.text.SimpleDateFormat; 
 import java.util.Comparator;
 import java.util.PriorityQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  *
@@ -62,6 +65,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     private CameraStatus lastStatus;
     
     private ServerSocket sock;
+    private ExecutorService exec;
 
     
     private PriorityQueue<String> q;
@@ -349,228 +353,237 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         
             USBMessage resp = this.sendCommand(START_EVENTS + "\n" + serverSocket.getLocalPort());
             
+            // todo - use single executor and restart
+            
             if (!resp.hasError())
             {
-                new Thread(() -> {
+                if (exec != null)
+                {
+                    exec.shutdownNow();
+                }
                 
-                    try 
-                    {   
-                        Socket socket = serverSocket.accept();
-                        InputStream inputStream = socket.getInputStream();
-                        
-                        while (true)
-                        {      
-                            USBMessage nm = new USBMessage(readUntilChar(inputStream, USBMessage.getMessageDelim()));
+                exec = Executors.newSingleThreadExecutor();
+                exec.submit(
+                
+                    new Thread(() -> {
 
-                            System.out.println("EVENT --->" + nm);
-                            
-                            String eventName = nm.getKey("Event");
-            
-                            l.forEach((CameraEventListener cel) ->
-                            {            
-                                if (null != eventName)
-                                {
-                                    switch (eventName)
+                        try 
+                        {   
+                            Socket socket = serverSocket.accept();
+                            InputStream inputStream = socket.getInputStream();
+
+                            while (true)
+                            {      
+                                USBMessage nm = new USBMessage(readUntilChar(inputStream, USBMessage.getMessageDelim()));
+
+                                System.out.println("EVENT "+serverSocket.getLocalPort()+" --->" + nm);
+
+                                String eventName = nm.getKey("Event");
+
+                                l.forEach((CameraEventListener cel) ->
+                                {            
+                                    if (null != eventName)
                                     {
-                                        case "deviceDisconnected":
+                                        switch (eventName)
+                                        {
+                                            case "deviceDisconnected":
 
-                                            (new Thread (() -> {
-                                                cel.deviceDisconnected(c);
-                                            })).start();
-                                            break;
+                                                (new Thread (() -> {
+                                                    cel.deviceDisconnected(c);
+                                                })).start();
+                                                break;
 
-                                        // TODO - maybe fire a callback for this
-                                        case "captureSettingsChanged":
-                                            break;
+                                            // TODO - maybe fire a callback for this
+                                            case "captureSettingsChanged":
+                                                break;
 
-                                        case "imageStored":
+                                            case "imageStored":
 
-                                            final PFRicohUSBSDKBridge br = this;
+                                                final PFRicohUSBSDKBridge br = this;
 
-                                            (new Thread (() -> {
-                                                cel.imageStored(c, new CameraImage() {
-                                                    @Override
-                                                    public String getName()
-                                                    {
-                                                       return nm.getKey("Name");
-                                                    }
-
-                                                    @Override
-                                                    public ImageType getType()
-                                                    {
-                                                        return "StillImage".equals(nm.getKey("Type")) ? ImageType.STILL_IMAGE : ImageType.MOVIE;
-                                                    }
-
-                                                    @Override
-                                                    public ImageFormat getFormat()
-                                                    {    
-                                                        String format = nm.getKey("Format");
-
-                                                        if ("DNG".equals(format))
+                                                (new Thread (() -> {
+                                                    cel.imageStored(c, new CameraImage() {
+                                                        @Override
+                                                        public String getName()
                                                         {
-                                                            return ImageFormat.DNG;
-                                                        }
-                                                        else if ("JPEG".equals(format))
-                                                        {
-                                                            return ImageFormat.JPEG;
-                                                        }
-                                                        else if ("AVI".equals(format))
-                                                        {
-                                                            return ImageFormat.AVI;
-                                                        }
-                                                        else if ("MP4".equals(format))
-                                                        {
-                                                            return ImageFormat.MP4;
-                                                        }
-                                                        else if ("PEF".equals(format))
-                                                        {
-                                                            return ImageFormat.PEF;
-                                                        }
-                                                        else if ("DPOF".equals(format))
-                                                        {
-                                                            return ImageFormat.DPOF;
-                                                        }
-                                                        else if ("TIFF".equals(format))
-                                                        {
-                                                            return ImageFormat.TIFF;
-                                                        }
-                                                        else
-                                                        {
-                                                            return ImageFormat.UNKNOWN;
-                                                        }                                        
-                                                    }
-
-                                                    @Override
-                                                    public Date getDateTime()
-                                                    {
-                                                        Date d = new Date();
-
-                                                        d.setTime(Integer.parseInt(nm.getKey("Date")) * 1000);
-
-                                                        return d;
-                                                    }
-
-                                                    @Override
-                                                    public boolean hasThumbnail()
-                                                    {
-                                                        return "1".equals(nm.getKey("HasThumbnail"));  
-                                                    }
-
-                                                    @Override
-                                                    public CameraStorage getStorage() {
-                                                        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-                                                    }
-
-                                                    @Override
-                                                    public Response getData(OutputStream out) throws IOException
-                                                    {   
-                                                        USBMessage nm2 = br.sendCommand(GET_IMAGE + "\n" + nm.getKey("ID"));
-
-                                                        if (!nm2.hasError())
-                                                        {
-                                                            String filePath = nm2.getKey("filePath");
-
-                                                            File f = new File(filePath);
-                                                            Files.copy(f.toPath(), out);
-                                                            f.delete();
-
-                                                            return new Response(Result.OK);
-                                                        }
-                                                        else
-                                                        {
-                                                             return new Response(
-                                                                Result.ERROR,
-                                                                new Error(ErrorCode.IMAGE_NOT_FOUND, "Image download error.")
-                                                            );
-                                                        }                                        
-                                                    }
-
-                                                    @Override
-                                                    public Response getThumbnail(OutputStream out) throws IOException
-                                                    {
-                                                        USBMessage nm2 = br.sendCommand(GET_THUMBNAIL + "\n" + nm.getKey("ID"));
-
-                                                        if (!nm2.hasError())
-                                                        {
-                                                            String filePath = nm2.getKey("filePath");
-
-                                                            File f = new File(filePath);
-                                                            Files.copy(f.toPath(), out);
-                                                            f.delete();
-
-                                                            return new Response(Result.OK);
-                                                        }
-                                                        else
-                                                        {
-                                                             return new Response(
-                                                                Result.ERROR,
-                                                                new Error(ErrorCode.IMAGE_NOT_FOUND, "Thumbnail download error.")
-                                                            );
-                                                        }                                        
-                                                    }
-                                                });
-                                            })).start();
-                                            break;
-
-                                        case "captureComplete":
-
-                                            (new Thread (() -> {
-                                                cel.captureComplete(c, new Capture() {
-                                                    @Override
-                                                    public String getId()
-                                                    {    
-                                                        return nm.getKey("ID");                                        
-                                                    }
-
-                                                    @Override
-                                                    public CaptureState getState()
-                                                    {    
-                                                        if ("Complete".equals(nm.getKey("State")))
-                                                        {
-                                                            return CaptureState.COMPLETE;
+                                                           return nm.getKey("Name");
                                                         }
 
-                                                        return CaptureState.EXECUTING;                                        
-                                                    }
-
-                                                    @Override
-                                                    public CaptureMethod getMethod()
-                                                    {    
-                                                        if ("Movie".equals(nm.getKey("Method")))
+                                                        @Override
+                                                        public ImageType getType()
                                                         {
-                                                            return CaptureMethod.MOVIE;
+                                                            return "StillImage".equals(nm.getKey("Type")) ? ImageType.STILL_IMAGE : ImageType.MOVIE;
                                                         }
 
-                                                        return CaptureMethod.STILL_IMAGE;                                        
-                                                    }
-                                                }
-                                                );
-                                            })).start();
-                                            break;
+                                                        @Override
+                                                        public ImageFormat getFormat()
+                                                        {    
+                                                            String format = nm.getKey("Format");
 
-                                        default:
-                                            break;
+                                                            if ("DNG".equals(format))
+                                                            {
+                                                                return ImageFormat.DNG;
+                                                            }
+                                                            else if ("JPEG".equals(format))
+                                                            {
+                                                                return ImageFormat.JPEG;
+                                                            }
+                                                            else if ("AVI".equals(format))
+                                                            {
+                                                                return ImageFormat.AVI;
+                                                            }
+                                                            else if ("MP4".equals(format))
+                                                            {
+                                                                return ImageFormat.MP4;
+                                                            }
+                                                            else if ("PEF".equals(format))
+                                                            {
+                                                                return ImageFormat.PEF;
+                                                            }
+                                                            else if ("DPOF".equals(format))
+                                                            {
+                                                                return ImageFormat.DPOF;
+                                                            }
+                                                            else if ("TIFF".equals(format))
+                                                            {
+                                                                return ImageFormat.TIFF;
+                                                            }
+                                                            else
+                                                            {
+                                                                return ImageFormat.UNKNOWN;
+                                                            }                                        
+                                                        }
+
+                                                        @Override
+                                                        public Date getDateTime()
+                                                        {
+                                                            Date d = new Date();
+
+                                                            d.setTime(Integer.parseInt(nm.getKey("Date")) * 1000);
+
+                                                            return d;
+                                                        }
+
+                                                        @Override
+                                                        public boolean hasThumbnail()
+                                                        {
+                                                            return "1".equals(nm.getKey("HasThumbnail"));  
+                                                        }
+
+                                                        @Override
+                                                        public CameraStorage getStorage() {
+                                                            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                                                        }
+
+                                                        @Override
+                                                        public Response getData(OutputStream out) throws IOException
+                                                        {   
+                                                            USBMessage nm2 = br.sendCommand(GET_IMAGE + "\n" + nm.getKey("ID"));
+
+                                                            if (!nm2.hasError())
+                                                            {
+                                                                String filePath = nm2.getKey("filePath");
+
+                                                                File f = new File(filePath);
+                                                                Files.copy(f.toPath(), out);
+                                                                f.delete();
+
+                                                                return new Response(Result.OK);
+                                                            }
+                                                            else
+                                                            {
+                                                                 return new Response(
+                                                                    Result.ERROR,
+                                                                    new Error(ErrorCode.IMAGE_NOT_FOUND, "Image download error.")
+                                                                );
+                                                            }                                        
+                                                        }
+
+                                                        @Override
+                                                        public Response getThumbnail(OutputStream out) throws IOException
+                                                        {
+                                                            USBMessage nm2 = br.sendCommand(GET_THUMBNAIL + "\n" + nm.getKey("ID"));
+
+                                                            if (!nm2.hasError())
+                                                            {
+                                                                String filePath = nm2.getKey("filePath");
+
+                                                                File f = new File(filePath);
+                                                                Files.copy(f.toPath(), out);
+                                                                f.delete();
+
+                                                                return new Response(Result.OK);
+                                                            }
+                                                            else
+                                                            {
+                                                                 return new Response(
+                                                                    Result.ERROR,
+                                                                    new Error(ErrorCode.IMAGE_NOT_FOUND, "Thumbnail download error.")
+                                                                );
+                                                            }                                        
+                                                        }
+                                                    });
+                                                })).start();
+                                                break;
+
+                                            case "captureComplete":
+
+                                                (new Thread (() -> {
+                                                    cel.captureComplete(c, new Capture() {
+                                                        @Override
+                                                        public String getId()
+                                                        {    
+                                                            return nm.getKey("ID");                                        
+                                                        }
+
+                                                        @Override
+                                                        public CaptureState getState()
+                                                        {    
+                                                            if ("Complete".equals(nm.getKey("State")))
+                                                            {
+                                                                return CaptureState.COMPLETE;
+                                                            }
+
+                                                            return CaptureState.EXECUTING;                                        
+                                                        }
+
+                                                        @Override
+                                                        public CaptureMethod getMethod()
+                                                        {    
+                                                            if ("Movie".equals(nm.getKey("Method")))
+                                                            {
+                                                                return CaptureMethod.MOVIE;
+                                                            }
+
+                                                            return CaptureMethod.STILL_IMAGE;                                        
+                                                        }
+                                                    }
+                                                    );
+                                                })).start();
+                                                break;
+
+                                            default:
+                                                break;
+                                        }
                                     }
-                                }
-                            });
+                                });
+                            }
+
                         }
-                        
-                    }
-                    catch (IOException e)
-                    {
-                        disconnect();
-                    }
-                }).start();
+                        catch (IOException e)
+                        {
+                            disconnect();
+                        }
+                    })
+                );
                 
                 return true;
             }
-            
         }
         catch (IOException e)
         {
             
-        }
-                
+        }   
         
         return false;
     }
@@ -926,6 +939,11 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     @Override
     public boolean setSettings(List<CaptureSetting> settingList)
     {
+        if (settingList.size() == 1)
+        {
+            return setSetting(settingList.get(0));
+        }
+        
         List<CaptureSetting> l = Arrays.asList(new FNumber(), new ShutterSpeed(), new ISO(), new ExposureCompensation());
 
         String writeString = "\n";

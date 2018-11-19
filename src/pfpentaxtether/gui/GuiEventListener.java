@@ -35,50 +35,65 @@ public class GuiEventListener extends CameraEventListener
     }
     
     @Override
-    synchronized public void imageStored(CameraDevice sender, CameraImage image)
+    public void imageStored(CameraDevice sender, CameraImage image)
     {
-        System.out.printf("Image Stored. Name: %s%n", image.getName());
-                
-        g.imageStored(image);
+        new Thread(() ->
+        {
+            System.out.printf("Image Stored. Name: %s%n", image.getName());
+
+            g.imageStored(image);
+        }).start();
     }
     
-    synchronized public void imageDownloaded(CameraImage image, File f, boolean isThumbnail)
+    public void imageDownloaded(CameraImage image, File f, boolean isThumbnail)
     {  
-        g.imageDownloaded(image, f, isThumbnail);
-    }
-
-    @Override
-    synchronized public void captureComplete(CameraDevice sender, Capture capture)
-    {            
-        if (sender != null && capture != null)
+        new Thread(() ->
         {
-            System.out.printf("Capture Complete. Caputure ID: %s%n", capture.getId());
-        }
-                
-        g.imageCaptureComplete(sender != null, m.getQueueSize());           
+            g.imageDownloaded(image, f, isThumbnail);
+        }).start();
     }
 
     @Override
-    synchronized public void deviceDisconnected(CameraDevice sender)
-    {   
-        System.out.println("Device Disconnected.");
+    public void captureComplete(CameraDevice sender, Capture capture)
+    {      
+        new Thread(() ->
+        {
+            if (sender != null && capture != null)
+            {
+                System.out.printf("Capture Complete. Caputure ID: %s%n", capture.getId());
+            }
 
-        g.disconnect();
+            g.imageCaptureComplete(sender != null, m.getQueueSize()); 
+        }).start();          
+    }
+
+    @Override
+    public void deviceDisconnected(CameraDevice sender)
+    {   
+        new Thread(() ->
+        {
+            System.out.println("Device Disconnected.");
+
+            g.disconnect();
+        }).start();
     }
     
     // Display liveViewFrame in imageView
     @Override
-    synchronized public void liveViewFrameUpdated(CameraDevice sender, byte[] liveViewFrame)
+    public void liveViewFrameUpdated(CameraDevice sender, byte[] liveViewFrame)
     {
-        try
+        new Thread(() ->
         {
-            BufferedImage img = ImageIO.read(new ByteArrayInputStream(liveViewFrame));
-            g.liveViewImageUpdated(img);
-        }
-        catch (IOException ex)
-        {
-            Logger.getLogger(GuiEventListener.class.getName()).log(Level.SEVERE, null, ex);
-        } 
+            try
+            {
+                BufferedImage img = ImageIO.read(new ByteArrayInputStream(liveViewFrame));
+                g.liveViewImageUpdated(img);
+            }
+            catch (IOException ex)
+            {
+                Logger.getLogger(GuiEventListener.class.getName()).log(Level.SEVERE, null, ex);
+            } 
+        }).start();
     }
 }
 
