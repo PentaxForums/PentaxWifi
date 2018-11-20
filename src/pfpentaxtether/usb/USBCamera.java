@@ -328,8 +328,8 @@ public final class USBCamera implements CameraDevice
     }
 
     @Override
-    public Response stopLiveView() {
-        
+    public Response stopLiveView()
+    {    
         try 
         {
             if (sock != null)
@@ -356,6 +356,23 @@ public final class USBCamera implements CameraDevice
     @Override
     public Response focus() {
         if (this.iface.focus())
+        {
+            return new Response(
+                Result.OK
+            );
+        }
+        else
+        {
+            return new Response(
+                Result.ERROR,
+                new Error(ErrorCode.NETWORK_ERROR, "Failed to focus")
+            );
+        }    
+    }
+    
+    public Response focus(int adjustment)
+    {
+        if (this.iface.focus(adjustment))
         {
             return new Response(
                 Result.OK

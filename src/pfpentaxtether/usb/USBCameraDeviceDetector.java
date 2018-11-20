@@ -65,9 +65,4 @@ public class USBCameraDeviceDetector
         
         return new ArrayList<>();
     }
-    
-    public static void main(String[] args)
-    {
-        System.out.println(detect(PF_USB_BRIDGE));
-    }
 }

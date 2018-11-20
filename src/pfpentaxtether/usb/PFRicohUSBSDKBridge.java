@@ -68,7 +68,6 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     
     private ServerSocket sock;
     private ExecutorService exec;
-
     
     private PriorityQueue<String> q;
     
@@ -83,6 +82,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     public static final String GET_DEVICE_INFO = "0";
     public static final String CONNECT = "1";
     public static final String CAPTURE = "2";
+    public static final String CAPTURE_WITH_FOCUS = "23";
     
     public static final String GET_STATUS = "5";
     
@@ -98,7 +98,8 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     public static final String GET_SHUTTER_SPEED = "18";
     public static final String SET_SHUTTER_SPEED = "19";  
     
-    public static final String FOCUS = "22";  
+    public static final String FOCUS = "22"; 
+    public static final String FOCUS_WITH_SETTING = "221"; 
     
     public static final String GET_ALL_SETTINGS = "3000";
     public static final String SET_ALL_SETTINGS = "3001";
@@ -248,6 +249,12 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     
     public USBMessage sendCommand(String c)
     {
+        if (!conn.isAlive())
+        {
+            System.err.println("USB driver has crashed.  Exiting.");
+            System.exit(0);
+        }
+        
         this.q.add(c);
         
         //System.out.println("Add " + c + " (" + this.q.size() + ")");
@@ -825,12 +832,17 @@ public final class PFRicohUSBSDKBridge implements USBInterface
             );
         }
         
+        final USBMessage nm;
+
         if (focus)
         {
-            focus();
+            nm = this.sendCommand(CAPTURE_WITH_FOCUS);
+            //focus();
         }
-        
-        final USBMessage nm = this.sendCommand(CAPTURE);
+        else
+        {
+            nm = this.sendCommand(CAPTURE);
+        }
 
         if (nm.hasError())
         {
@@ -943,38 +955,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
             }
         }
     }
-      
-    // TODO check for if camera was DCd
-     
-    public static void main(String args[])
-    { 
-        PFRicohUSBSDKBridge br = new PFRicohUSBSDKBridge();
-        
-        for (CameraDevice d : br.detectDevices())
-        {
-            d.connect(null);
-            
-            List<CaptureSetting> l = Arrays.asList(new ShutterSpeed(), new ExposureCompensation(), new FNumber(), new ISO());
-            
-            d.getCaptureSettings(l);
-            
-            for (CaptureSetting s : l)
-            {
-                System.out.println(s);
-            }
-            
-            d.setCaptureSettings(Arrays.asList(FNumber.F11));
-            d.setCaptureSettings(Arrays.asList(ShutterSpeed.SS1_100));
-            d.setCaptureSettings(Arrays.asList(ISO.ISO200));
-            d.setCaptureSettings(Arrays.asList(ExposureCompensation.EC1_0));
-
-            //d.startCapture(true);
-            d.disconnect(null);
-        }
-        
-        br.disconnect();
-    }
-       
+             
     public static String readUntilChar(InputStream stream, char target)
     {
         StringBuilder sb = new StringBuilder();
@@ -1007,6 +988,15 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     public boolean focus()
     {
         return this.sendCommand(FOCUS).hasError() == false;
+    }
+    
+    @Override
+    /**
+     * Unfortunately the SDK doesn't seem to properly support this yet
+     */
+    public boolean focus(int adjustment)
+    {
+        return this.sendCommand(FOCUS_WITH_SETTING + "\n" + adjustment).hasError() == false;
     }
 
     @Override

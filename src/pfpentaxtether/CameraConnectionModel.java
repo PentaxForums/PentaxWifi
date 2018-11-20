@@ -71,7 +71,7 @@ public class CameraConnectionModel
     private boolean queueLocked;
     private final ImageDownloadManager dm;
     private ScheduledExecutorService capturePool;
-    private CameraEventListener cl;
+    private final CameraEventListener cl;
     
     public static enum CONNECTION_MODE {MODE_WIFI, MODE_USB};
     public final CONNECTION_MODE mode;
@@ -245,7 +245,7 @@ public class CameraConnectionModel
     
     /**
      * Adds a photo to be captured later
-     * @param p
+     * @param img
      * @throws CameraException 
      */
     synchronized public void enqueuePhoto(FuturePhoto img) throws CameraException

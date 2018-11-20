@@ -49,6 +49,8 @@ interface USBInterface
     
     public boolean focus();
     
+    public boolean focus(int adjustment);
+    
     public boolean isBusy();
     
     public boolean startLiveView(int port);

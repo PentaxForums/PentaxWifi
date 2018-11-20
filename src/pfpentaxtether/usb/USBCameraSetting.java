@@ -47,13 +47,16 @@ public class USBCameraSetting <T extends CaptureSetting> extends CaptureSetting
         // Extract available settings
         List<CaptureSetting> settings = new ArrayList<>();
         
-        for (String s : available.split(LIST_DELIM))
-        {            
-            T cand = getMatchingSetting(s.trim(), cls);
-            
-            if (cand != null)
-            {
-                settings.add(cand);
+        if (available != null)
+        {
+            for (String s : available.split(LIST_DELIM))
+            {            
+                T cand = getMatchingSetting(s.trim(), cls);
+
+                if (cand != null)
+                {
+                    settings.add(cand);
+                }
             }
         }
         

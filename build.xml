@@ -23,9 +23,9 @@
 
 		
 		
-		<copy file="./bin/run_mac_unix.sh" todir="${dist.dir}/"/>        
+		<copy file="./bin/run_mac_unix_wifi.sh" todir="${dist.dir}/"/>        
 		<copy file="./bin/run_mac_unix_usb.sh" todir="${dist.dir}/"/>        
-		<copy file="./bin/run_windows.bat" todir="${dist.dir}/"/>        
+		<copy file="./bin/run_windows_wifi.bat" todir="${dist.dir}/"/>        
 		<copy file="./bin/run_windows_usb.bat" todir="${dist.dir}/"/>   
 		
 		<copy file="./bin/libcamera-usb-sdk-cpp.dylib" todir="${dist.dir}/bin/"/>  
