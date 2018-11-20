@@ -269,6 +269,22 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         });
         
         popupMenu2.add(focusItem);
+        
+        JMenuItem captureItem = new JMenuItem("Capture Without Settings");
+        captureItem.addActionListener((ActionEvent e) -> {
+             
+            (new Thread()
+            {  
+                @Override
+                public void run()
+                {
+                    captureButtonActionPerformed(null);
+                }
+            }).start();        
+        });
+        
+        popupMenu2.add(captureItem);
+        
         captureButton.setComponentPopupMenu(popupMenu2);
         
         // Camera status checker
@@ -2019,7 +2035,11 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         {
             try
             {
-                m.setCaptureSettings(getSettings(null));
+                if (evt != null)
+                {
+                    m.setCaptureSettings(getSettings(null));
+                }
+                
                 m.captureStillImage(false);                
             }
             catch (CameraException ex)
