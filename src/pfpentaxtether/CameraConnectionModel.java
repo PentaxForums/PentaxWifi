@@ -288,22 +288,33 @@ public class CameraConnectionModel
     }
     
     /**
-     * Converts shutter speed string to an integer (used for timeout calculation)
+     * Converts shutter speed string to a time, in milliseconds, used for timeout calculation
      * @param ss
      * @return 
      */
-    private int parseShutterSpeed(CaptureSetting ss)
+    private int parseShutterSpeedForDelay(List<CaptureSetting> l)
     {
-        String val = ss.getValue().toString();
+        for (CaptureSetting s : l)
+        {
+            if (s != null && s.getName().equals(ShutterSpeed.BULB.getName()))
+            {
+                String val = s.getValue().toString();
         
-        if (val.contains("/"))
-        {
-            return 1;
+                if (val.contains("/"))
+                {
+                    // Fractions of a second - so wait for 2 seconds
+                    return 2000;
+                }
+                else
+                {
+                    return 1000 + 1000 * Math.round(Float.parseFloat(val)); 
+                }    
+            }
         }
-        else
-        {
-            return Math.round(Float.parseFloat(val)); 
-        }
+        
+        // We don't know what shutter speed is being used, so assume 30 seconds
+        // TODO - is this the best approach?  What if it's 20 minutes?
+        return 30000;
     }
     
     /**
@@ -337,7 +348,7 @@ public class CameraConnectionModel
                 {
                     try
                     {   
-                        if (waited > timeout + 2 * parseShutterSpeed(this.tv))
+                        if (waited > timeout + parseShutterSpeedForDelay(next.settings))
                         {
                             throw new InterruptedException("Timeout in image queue.");
                         }

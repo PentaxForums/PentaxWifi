@@ -101,8 +101,12 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     public static final int STATUS_REFRESH = 1500;
     
     // Version number
-    public static final String VERSION_NUMBER = "1.0.0 Beta 11";
+    public static final String VERSION_NUMBER = "1.0.0 Beta 12";
     public static final String SW_NAME = "PentaxForums.com Wi-Fi & USB Tether";
+    
+    // UI strings
+    public static final String DELAY_TEXT_LABEL = "Delay Between Photos";
+    public static final String CAPTURE_QUEUE_LABEL = "Capture Queue";
     
     /**
      * Creates new form MainGui
@@ -357,6 +361,8 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         this.transferThumbnails.setSelected(doTransferThumbnails);
         this.autoReconnect.setSelected(doAutoReconnect);
         this.syncCameraSettings.setSelected(doSyncCameraSettings);
+        
+        updateSliderLabel();
     }
     
     /**
@@ -490,6 +496,18 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
 
             this.loaderLabelTransfer.setVisible(imagesTransmitting > 0);
         }
+        
+        if (this.m.getQueueSize() > 0 || this.m.getDownloadManager().getNumEnqueuedAll() > 0)
+        {
+            this.captureQueueTextLabel.setText(CAPTURE_QUEUE_LABEL + String.format(" (%s captures queued, %s to download)", 
+                    this.m.getQueueSize(),
+                    this.m.getDownloadManager().getNumEnqueued(false)
+            ));    
+        }
+        else
+        {
+            this.captureQueueTextLabel.setText(CAPTURE_QUEUE_LABEL);
+        }
     }
     
     /**
@@ -570,8 +588,10 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             this.queueProgressBar.setVisible(false);
             
             this.m.getDownloadManager().processImageDownloadQueue(saveFilePath, this);
-            this.refreshTransmitting();
         }
+        
+        // Was above
+        this.refreshTransmitting();
     }
     
     /**
@@ -911,7 +931,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         saveMenuItem = new javax.swing.JMenuItem();
         restartMenuItem = new javax.swing.JMenuItem();
         exitMenuItem = new javax.swing.JMenuItem();
-        editMenu = new javax.swing.JMenu();
+        pauseQueueMenu = new javax.swing.JMenu();
         jMenuItem1 = new javax.swing.JMenuItem();
         abortIntervalMenuItem = new javax.swing.JMenuItem();
         jSeparator1 = new javax.swing.JPopupMenu.Separator();
@@ -1572,7 +1592,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
 
         mainMenuBar.add(fileMenu);
 
-        editMenu.setText("Edit");
+        pauseQueueMenu.setText("Edit");
 
         jMenuItem1.setText("Pause Queue");
         jMenuItem1.addActionListener(new java.awt.event.ActionListener() {
@@ -1580,7 +1600,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 jMenuItem1ActionPerformed(evt);
             }
         });
-        editMenu.add(jMenuItem1);
+        pauseQueueMenu.add(jMenuItem1);
 
         abortIntervalMenuItem.setText("Abort Queue/Capture");
         abortIntervalMenuItem.addActionListener(new java.awt.event.ActionListener() {
@@ -1588,8 +1608,8 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 abortIntervalMenuItemActionPerformed(evt);
             }
         });
-        editMenu.add(abortIntervalMenuItem);
-        editMenu.add(jSeparator1);
+        pauseQueueMenu.add(abortIntervalMenuItem);
+        pauseQueueMenu.add(jSeparator1);
 
         abortTransferMenuItem.setText("Pause Image Transfers");
         abortTransferMenuItem.addActionListener(new java.awt.event.ActionListener() {
@@ -1597,7 +1617,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 abortTransferMenuItemActionPerformed(evt);
             }
         });
-        editMenu.add(abortTransferMenuItem);
+        pauseQueueMenu.add(abortTransferMenuItem);
 
         resumeDownloadsMenu.setText("Resume Pending Transfers");
         resumeDownloadsMenu.addActionListener(new java.awt.event.ActionListener() {
@@ -1605,7 +1625,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 resumeDownloadsMenuActionPerformed(evt);
             }
         });
-        editMenu.add(resumeDownloadsMenu);
+        pauseQueueMenu.add(resumeDownloadsMenu);
 
         cancelPendingTransfers.setText("Cancel Pending Transfers");
         cancelPendingTransfers.addActionListener(new java.awt.event.ActionListener() {
@@ -1613,9 +1633,9 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 cancelPendingTransfersActionPerformed(evt);
             }
         });
-        editMenu.add(cancelPendingTransfers);
+        pauseQueueMenu.add(cancelPendingTransfers);
 
-        mainMenuBar.add(editMenu);
+        mainMenuBar.add(pauseQueueMenu);
 
         optionsMenu.setText("Options");
 
@@ -1719,7 +1739,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
 
         // Enqueue items
         CameraSettingTableModel t = (CameraSettingTableModel) this.queueTable.getModel();
-          
+                  
         try
         {
             if (m.isQueueEmpty())
@@ -1768,6 +1788,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 }
                                 
                 m.processQueue(getDelaySeconds());
+                this.refreshTransmitting();
             }
         }
         catch (CameraException ex)
@@ -1816,8 +1837,13 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         // Cannot delete if the queue is not empty
         else
         {
-            JOptionPane.showMessageDialog(this, String.format("There are %d pending captures in the queue.\n\nProcess queue or abort via Edit menu (ensure Reset option is selected in the Options Menu).", this.m.getQueueSize()));
+            queueLockedMessage();
         }
+    }
+    
+    private void queueLockedMessage()
+    {
+        JOptionPane.showMessageDialog(this, String.format("There are %d pending captures in the queue.\n\nProcess queue or abort via Edit menu (ensure Reset option is selected in the Options Menu).", this.m.getQueueSize()));
     }
     
     /**
@@ -2065,6 +2091,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
 
     private void minutesActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_minutesActionPerformed
         prefs.putBoolean("minutes", this.minutes.isSelected());
+        updateSliderLabel();
     }//GEN-LAST:event_minutesActionPerformed
 
     private void saveMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_saveMenuItemActionPerformed
@@ -2120,12 +2147,30 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
       
     }//GEN-LAST:event_formWindowClosed
 
+    private void updateSliderLabel()
+    {
+        int value = this.timeSlider.getValue();
+        
+        if (value != 0)
+        {
+            this.delayTextLabel.setText(DELAY_TEXT_LABEL + " (" + value + " " + (this.minutes.isSelected() ? "min" : "sec") + ")");
+        }
+        else
+        {
+            this.delayTextLabel.setText(DELAY_TEXT_LABEL);
+        }
+    }
+    
     private void timeSliderStateChanged(javax.swing.event.ChangeEvent evt) {//GEN-FIRST:event_timeSliderStateChanged
         prefs.putInt("sliderPosition", this.timeSlider.getValue());
+        
+        updateSliderLabel();
     }//GEN-LAST:event_timeSliderStateChanged
 
     private void SecondsActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_SecondsActionPerformed
         prefs.putBoolean("minutes", this.minutes.isSelected());
+        
+        updateSliderLabel();
     }//GEN-LAST:event_SecondsActionPerformed
 
     private void loaderLabelPhotoMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_loaderLabelPhotoMouseClicked
@@ -2413,6 +2458,8 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
 
     private void jMenuItem1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jMenuItem1ActionPerformed
         
+        boolean preference = this.autoReconnect.isSelected();
+        
         if (this.m.isQueueProcessing())
         {
             this.autoReconnect.setSelected(false);
@@ -2420,6 +2467,10 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             
             this.m.abortQueue();
             endProcessing();
+            
+            // Such a hack!
+            this.autoReconnect.setSelected(preference);
+            autoReconnectActionPerformed(null);
         }
     }//GEN-LAST:event_jMenuItem1ActionPerformed
 
@@ -2447,7 +2498,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private javax.swing.JButton decTv;
     private javax.swing.JPanel delayPanel;
     private javax.swing.JLabel delayTextLabel;
-    private javax.swing.JMenu editMenu;
     private javax.swing.JComboBox<String> evMenu;
     private javax.swing.JPanel evPanel;
     private javax.swing.JLabel evTextLabel;
@@ -2476,6 +2526,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private javax.swing.JLabel numImagesTransmitting;
     private javax.swing.JMenuItem openMenuItem;
     private javax.swing.JMenu optionsMenu;
+    private javax.swing.JMenu pauseQueueMenu;
     private javax.swing.JButton processQueueButton;
     private javax.swing.JPanel queuePanel;
     private javax.swing.JProgressBar queueProgressBar;
