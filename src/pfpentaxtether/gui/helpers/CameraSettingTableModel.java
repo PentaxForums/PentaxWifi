@@ -42,19 +42,22 @@ public class CameraSettingTableModel extends DefaultTableModel implements java.i
         // Save model as string, row by row
         try
         {
-            for (int row = 0; row < m.getRowCount(); row++)
+            if (m != null)
             {
-                output = output 
-                    + m.getValueAt(row, 0).toString() + ","
-                    + m.getValueAt(row, 1).toString() + ","
-                    + m.getValueAt(row, 2).toString() + ","
-                    + m.getValueAt(row, 3).toString() + "\n";
+                for (int row = 0; row < m.getRowCount(); row++)
+                {
+                    output = output 
+                        + m.getValueAt(row, 0).toString() + ","
+                        + m.getValueAt(row, 1).toString() + ","
+                        + m.getValueAt(row, 2).toString() + ","
+                        + m.getValueAt(row, 3).toString() + "\n";
+                }
+
+                FileOutputStream fileOut =
+                    new FileOutputStream(filePath);
+                fileOut.write(output.getBytes());
+                fileOut.close();
             }
-            
-            FileOutputStream fileOut =
-                new FileOutputStream(filePath);
-            fileOut.write(output.getBytes());
-            fileOut.close();
             
             return true;
         }

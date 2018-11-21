@@ -273,8 +273,8 @@ public class CameraConnectionModel
             // Restore uncaptured image
             if (p != null)
             {
-                //The photo would have already been shot, so actually skip this...
-                //this.imageQueue.addFirst(p);
+                // TODO The photo would have already been shot, so may actually want to skip this...
+                this.imageQueue.addFirst(p);
                 p = null;
             }
             

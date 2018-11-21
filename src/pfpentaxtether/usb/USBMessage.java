@@ -27,6 +27,20 @@ public class USBMessage
     
     private final Map<String, String> m;
     private final String rawData;
+    
+    /**
+     * Generates a message reflecting a timeout condition
+     * @param error
+     * @param s 
+     */
+    public USBMessage(String errorType, String s)
+    {
+        typ = errorType;
+        err = "Command failed to execute: " + s.replaceAll("\n", " ");
+        m = new HashMap<>();
+        msg = "";
+        rawData = s;
+    }
         
     /**
      * Parse the message from input string

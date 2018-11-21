@@ -123,6 +123,8 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         
     private static final int WAIT_INTERVAL = 10;
     
+    private static final int INTERFACE_TIMEOUT = 20000;
+    
       
     public PFRicohUSBSDKBridge()
     {
@@ -245,13 +247,12 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     {
         return connected;
     }
-  
     
     public USBMessage sendCommand(String c)
     {
         if (!conn.isAlive())
         {
-            System.err.println("USB driver has crashed.  Exiting.");
+            System.err.println("    USB driver has crashed.  Exiting.");
             System.exit(0);
         }
         
@@ -260,11 +261,23 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         //System.out.println("Add " + c + " (" + this.q.size() + ")");
         //System.out.println("Top: " + this.q.peek());
 
+        int waited = 0;
+        
         while(!this.q.peek().equals(c))
         {
             try
             {
+                if (waited >= INTERFACE_TIMEOUT)
+                {
+                    USBMessage nm = new USBMessage("TimeoutError", c);
+                    System.out.println(nm.toString());
+                    this.q.remove(c);
+                    
+                    return nm;
+                }
+                
                 Thread.sleep(WAIT_INTERVAL);
+                waited += WAIT_INTERVAL;
             }
             catch (InterruptedException ex)
             {
@@ -562,7 +575,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
                                                         {   
                                                             USBMessage nm2 = br.sendCommand(GET_IMAGE + "\n" + nm.getKey("ID"));
 
-                                                            if (!nm2.hasError())
+                                                            if (!nm2.hasError() && !nm2.hasKey("ErrorCode"))
                                                             {
                                                                 String filePath = nm2.getKey("filePath");
 

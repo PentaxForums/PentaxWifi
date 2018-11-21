@@ -290,6 +290,7 @@ public class ImageDownloadManager
      */
     public void downloadThumb(String savePath, CameraImage i, CaptureEventListener l)
     {
+        // TODO - this must be enqueued with a higher priority
         doDownloadImage(savePath, i, true, l);
     }
     
