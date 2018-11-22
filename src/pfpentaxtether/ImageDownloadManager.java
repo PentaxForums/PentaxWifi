@@ -13,14 +13,12 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * Class to manage image transfers from the camera
@@ -35,7 +33,7 @@ public class ImageDownloadManager
     private final Map<CameraImage, File> downloadedThumbs;
     
     private ExecutorService downloadPool;
-    private CameraConnectionModel m;
+    private final CameraConnectionModel m;
     private int numImagesProcessing;
     private int numThumbsProcessing;
     
@@ -290,7 +288,7 @@ public class ImageDownloadManager
      */
     public void downloadThumb(String savePath, CameraImage i, CaptureEventListener l)
     {
-        // TODO - this must be enqueued with a higher priority
+        // TODO - this must be enqueued with a higher priority - add to queue then pop in thread
         doDownloadImage(savePath, i, true, l);
     }
     

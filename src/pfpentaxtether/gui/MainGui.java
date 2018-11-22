@@ -16,6 +16,7 @@ import com.ricoh.camera.sdk.wireless.api.setting.capture.ShutterSpeed;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Desktop;
+import java.awt.Image;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
@@ -103,12 +104,16 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     public static final int STATUS_REFRESH = 1500;
     
     // Version number
-    public static final String VERSION_NUMBER = "1.0.0 Beta 13";
+    public static final String VERSION_NUMBER = "1.0.0 Beta 14";
     public static final String SW_NAME = "PentaxForums.com Wi-Fi & USB Tether";
     
     // UI strings
     public static final String DELAY_TEXT_LABEL = "Delay Between Photos";
     public static final String CAPTURE_QUEUE_LABEL = "Capture Queue";
+    
+    // Thumbnail dimensions
+    public static final int THUMB_WIDTH = 160;
+    public static final int THUMB_HEIGHT = 120;
     
     /**
      * Creates new form MainGui
@@ -463,8 +468,16 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 try
                 {
                     myPicture = ImageIO.read(f);
-                    this.thumbnailArea.setIcon(new ImageIcon(myPicture));
                     
+                    //if (myPicture.getWidth() > THUMB_WIDTH || myPicture.getHeight() > THUMB_HEIGHT)
+                    //{
+                        this.thumbnailArea.setIcon(new ImageIcon(myPicture.getScaledInstance(THUMB_WIDTH, THUMB_HEIGHT, Image.SCALE_SMOOTH)));
+                    //}
+                    //else
+                    //{
+                    //    this.thumbnailArea.setIcon(new ImageIcon(myPicture));
+                    //}
+                                        
                     // Delete the temporary thumbnail file
                     this.m.getDownloadManager().getDownloadedThumb(image).delete();                       
                 }
