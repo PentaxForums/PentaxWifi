@@ -48,6 +48,7 @@ import java.util.logging.Logger;
 import java.util.Date; 
 import java.text.SimpleDateFormat; 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.concurrent.ExecutorService;
@@ -124,12 +125,12 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     private static final int WAIT_INTERVAL = 10;
     
     private static final int INTERFACE_TIMEOUT = 20000;
-    
+        
       
     public PFRicohUSBSDKBridge()
     {
         connected = false;
-        
+                
         q = new PriorityQueue<>((String s1, String s2) -> {
             if (s1.equals(s2))
             {
@@ -509,9 +510,30 @@ public final class PFRicohUSBSDKBridge implements USBInterface
                                                 break;
 
                                             case "imageStored":
+                                            case "imageAdded":
 
+                                                // These will both fire if there are 0 images on the card.  But it doesn't really hurt.
+                                                
                                                 final PFRicohUSBSDKBridge br = this;
+                                                
+                                                // Only for imageAdded
+                                                if (nm.hasKey("ImagePath"))
+                                                {
+                                                    String filePath = nm.getKey("ImagePath");
 
+                                                    File f = new File(filePath);
+                                                    f.deleteOnExit();
+                                                }
+                                                
+                                                if (nm.hasKey("ThumbPath"))
+                                                {
+                                                    String filePath = nm.getKey("ThumbPath");
+
+                                                    File f = new File(filePath);
+                                                    f.deleteOnExit();
+                                                }
+                                                // Only for imageAdded
+                                                                
                                                 (new Thread (() -> {
                                                     cel.imageStored(c, new CameraImage() {
                                                         @Override
@@ -580,49 +602,77 @@ public final class PFRicohUSBSDKBridge implements USBInterface
                                                         @Override
                                                         public Response getData(OutputStream out) throws IOException
                                                         {   
-                                                            USBMessage nm2 = br.sendCommand(GET_IMAGE + "\n" + nm.getKey("ID"));
-
-                                                            if (!nm2.hasError() && !nm2.hasKey("ErrorCode"))
+                                                            // Only for imageAdded
+                                                            if (nm.hasKey("ImagePath"))
                                                             {
-                                                                String filePath = nm2.getKey("filePath");
-
+                                                                String filePath = nm.getKey("ImagePath");
+                                                                
                                                                 File f = new File(filePath);
                                                                 Files.copy(f.toPath(), out);
                                                                 f.delete();
-
+                                                                
                                                                 return new Response(Result.OK);
                                                             }
                                                             else
                                                             {
-                                                                 return new Response(
-                                                                    Result.ERROR,
-                                                                    new Error(ErrorCode.IMAGE_NOT_FOUND, "Image download error.")
-                                                                );
-                                                            }                                        
+                                                                USBMessage nm2 = br.sendCommand(GET_IMAGE + "\n" + nm.getKey("ID"));
+
+                                                                if (!nm2.hasError() && !nm2.hasKey("ErrorCode"))
+                                                                {
+                                                                    String filePath = nm2.getKey("filePath");
+
+                                                                    File f = new File(filePath);
+                                                                    Files.copy(f.toPath(), out);
+                                                                    f.delete();
+
+                                                                    return new Response(Result.OK);
+                                                                }
+                                                                else
+                                                                {
+                                                                     return new Response(
+                                                                        Result.ERROR,
+                                                                        new Error(ErrorCode.IMAGE_NOT_FOUND, "Image download error.")
+                                                                    );
+                                                                }   
+                                                            }                                     
                                                         }
 
                                                         @Override
                                                         public Response getThumbnail(OutputStream out) throws IOException
                                                         {
-                                                            USBMessage nm2 = br.sendCommand(GET_THUMBNAIL + "\n" + nm.getKey("ID"));
-
-                                                            if (!nm2.hasError())
+                                                            // Only for imageAdded
+                                                            if (nm.hasKey("ThumbPath"))
                                                             {
-                                                                String filePath = nm2.getKey("filePath");
-
+                                                                String filePath = nm.getKey("ThumbPath");
+                                                                
                                                                 File f = new File(filePath);
                                                                 Files.copy(f.toPath(), out);
                                                                 f.delete();
-
+                                                                
                                                                 return new Response(Result.OK);
                                                             }
                                                             else
                                                             {
-                                                                 return new Response(
-                                                                    Result.ERROR,
-                                                                    new Error(ErrorCode.IMAGE_NOT_FOUND, "Thumbnail download error.")
-                                                                );
-                                                            }                                        
+                                                                USBMessage nm2 = br.sendCommand(GET_THUMBNAIL + "\n" + nm.getKey("ID"));
+
+                                                                if (!nm2.hasError())
+                                                                {
+                                                                    String filePath = nm2.getKey("filePath");
+
+                                                                    File f = new File(filePath);
+                                                                    Files.copy(f.toPath(), out);
+                                                                    f.delete();
+
+                                                                    return new Response(Result.OK);
+                                                                }
+                                                                else
+                                                                {
+                                                                     return new Response(
+                                                                        Result.ERROR,
+                                                                        new Error(ErrorCode.IMAGE_NOT_FOUND, "Thumbnail download error.")
+                                                                    );
+                                                                }    
+                                                            }                                    
                                                         }
                                                     });
                                                 })).start();

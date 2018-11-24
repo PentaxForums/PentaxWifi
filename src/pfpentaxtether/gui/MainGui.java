@@ -104,7 +104,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     public static final int STATUS_REFRESH = 1500;
     
     // Version number
-    public static final String VERSION_NUMBER = "1.0.0 Beta 14";
+    public static final String VERSION_NUMBER = "1.0.0 Beta 15";
     public static final String SW_NAME = "PentaxForums.com Wi-Fi & USB Tether";
     
     // UI strings
@@ -498,7 +498,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     /**
      * Updates the state of the UI spinner
      */
-    private void refreshTransmitting()
+    synchronized private void refreshTransmitting()
     {   
         if (this.numImagesTransmitting != null)
         {
