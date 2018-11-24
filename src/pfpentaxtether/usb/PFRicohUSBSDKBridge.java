@@ -51,9 +51,14 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  *
@@ -124,7 +129,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         
     private static final int WAIT_INTERVAL = 10;
     
-    private static final int INTERFACE_TIMEOUT = 20000;
+    private static final int INTERFACE_TIMEOUT = 30000;
         
       
     public PFRicohUSBSDKBridge()
@@ -306,7 +311,28 @@ public final class PFRicohUSBSDKBridge implements USBInterface
             p.flush();
         }
         
-        USBMessage nm = new USBMessage(readUntilChar(in, USBMessage.getMessageDelim()));
+        // TODO - add timeout to this call
+        // USBMessage nm = new USBMessage(readUntilChar(in, USBMessage.getMessageDelim()));
+
+        USBMessage nm = new USBMessage("TimeoutError", c);
+        
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Future<USBMessage> future = executor.submit(() -> new USBMessage(readUntilChar(in, USBMessage.getMessageDelim())));
+              
+        try
+        {
+            nm = future.get(INTERFACE_TIMEOUT, TimeUnit.MILLISECONDS); //timeout is in 2 seconds
+        }
+        catch (TimeoutException e)
+        {
+            System.err.println("Operation timed out.");
+        }
+        catch (InterruptedException | ExecutionException ex)
+        {
+            Logger.getLogger(PFRicohUSBSDKBridge.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        
+        executor.shutdownNow();
         
         //System.out.println("----< Finished " + c);
         

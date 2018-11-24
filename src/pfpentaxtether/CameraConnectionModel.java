@@ -345,6 +345,7 @@ public class CameraConnectionModel
                 
                 int waited = 0;
                 
+                // TODO convert to executor
                 // Block thread until capture completes
                 while (captureState.get(c.getId()) == false)
                 {

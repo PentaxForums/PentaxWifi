@@ -76,7 +76,9 @@ public class ImageDownloadManager
 
         if (l != null)
         {
-            l.imageDownloaded(null, null, false);
+            new Thread(() -> {
+                l.imageDownloaded(null, null, false);
+            }).start();
         }
     }
     
@@ -379,7 +381,13 @@ public class ImageDownloadManager
                     decNumProcessing(isThumbnail);
                     if (l != null)
                     {
-                        l.imageDownloaded(i, f, isThumbnail);    
+                        final CameraImage img = i;
+                        final File fil = f;
+                        final boolean isThumb = isThumbnail;
+                        
+                        new Thread(() -> {
+                            l.imageDownloaded(img, fil, isThumb);    
+                        }).start();
                     }
                 }
                 catch (IOException e)
@@ -387,7 +395,12 @@ public class ImageDownloadManager
                     decNumProcessing(isThumbnail);
                     if (l != null)
                     {
-                        l.imageDownloaded(i, null, isThumbnail);    
+                        final CameraImage img = i;
+                        final boolean isThumb = isThumbnail;
+                        
+                        new Thread(() -> {
+                            l.imageDownloaded(img, null, isThumb);    
+                        }).start();    
                     }
                     
                     error = true;

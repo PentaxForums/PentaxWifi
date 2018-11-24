@@ -80,6 +80,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private Boolean doTransferRawFiles;
     private Boolean doTransferThumbnails;
     private Boolean doSyncCameraSettings;
+    private Boolean doDownloadQueueImmediately;
     private Boolean doAutoReconnect;
     private ScheduledExecutorService pool;
     private LiveViewGui lv;
@@ -104,7 +105,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     public static final int STATUS_REFRESH = 1500;
     
     // Version number
-    public static final String VERSION_NUMBER = "1.0.0 Beta 15";
+    public static final String VERSION_NUMBER = "1.0.0 Beta 16";
     public static final String SW_NAME = "PentaxForums.com Wi-Fi & USB Tether";
     
     // UI strings
@@ -349,6 +350,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     {
         doTransferThumbnails = prefs.getBoolean("doTransferThumbnails", true);
         doSyncCameraSettings = prefs.getBoolean("doSyncCameraSettings", false);
+        doDownloadQueueImmediately = prefs.getBoolean("doDownloadQueueImmediately", false);
         doTransferFiles = prefs.getBoolean("doTransferFiles", false);
         doTransferRawFiles = prefs.getBoolean("doTransferRawFiles", false);
         saveFilePath = prefs.get("saveFilePath", DEFAULT_PATH);
@@ -376,6 +378,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         this.transferThumbnails.setSelected(doTransferThumbnails);
         this.autoReconnect.setSelected(doAutoReconnect);
         this.syncCameraSettings.setSelected(doSyncCameraSettings);
+        this.downloadQueueImmediately.setSelected(doDownloadQueueImmediately);
         
         updateSliderLabel();
     }
@@ -426,13 +429,15 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         )
         {
             // In batch shooting, we need to postpone downloading until the end to maintain stability            
-            if (this.m.isQueueProcessing())
+            if (this.m.isQueueProcessing() && !doDownloadQueueImmediately)
             {
                 this.m.getDownloadManager().enqueueImage(image);
             }
             else
             {
-                this.m.getDownloadManager().downloadImage(saveFilePath, image, this);              
+                new Thread(()-> {
+                    this.m.getDownloadManager().downloadImage(saveFilePath, image, this);             
+                }).start();
             } 
         }
         
@@ -991,6 +996,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         transferThumbnails = new javax.swing.JCheckBoxMenuItem();
         autoReconnect = new javax.swing.JCheckBoxMenuItem();
         syncCameraSettings = new javax.swing.JCheckBoxMenuItem();
+        downloadQueueImmediately = new javax.swing.JCheckBoxMenuItem();
         helpMenu = new javax.swing.JMenu();
         troubleshootingMenuItem = new javax.swing.JMenuItem();
         aboutMenuItem = new javax.swing.JMenuItem();
@@ -1714,6 +1720,15 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             }
         });
         optionsMenu.add(syncCameraSettings);
+
+        downloadQueueImmediately.setSelected(true);
+        downloadQueueImmediately.setText("Download Queue Immediately");
+        downloadQueueImmediately.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                downloadQueueImmediatelyActionPerformed(evt);
+            }
+        });
+        optionsMenu.add(downloadQueueImmediately);
 
         mainMenuBar.add(optionsMenu);
 
@@ -2538,6 +2553,17 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         }).start(); 
     }//GEN-LAST:event_pauseQueueMenuActionPerformed
 
+    private void downloadQueueImmediatelyActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_downloadQueueImmediatelyActionPerformed
+        prefs.putBoolean("doDownloadQueueImmediately", this.downloadQueueImmediately.isSelected());
+
+        if (this.downloadQueueImmediately.isSelected())
+        {
+            JOptionPane.showMessageDialog(this, "Photos captured via the queue feature will now be downloaded immediately.  This may negatively affect Wi-Fi stability and is not recommended.");
+        }
+        
+        loadPrefs();
+    }//GEN-LAST:event_downloadQueueImmediatelyActionPerformed
+
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JRadioButton Seconds;
     private javax.swing.JMenuItem abortIntervalMenuItem;
@@ -2562,6 +2588,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private javax.swing.JButton decTv;
     private javax.swing.JPanel delayPanel;
     private javax.swing.JLabel delayTextLabel;
+    private javax.swing.JCheckBoxMenuItem downloadQueueImmediately;
     private javax.swing.JMenu editMenu;
     private javax.swing.JComboBox<String> evMenu;
     private javax.swing.JPanel evPanel;
