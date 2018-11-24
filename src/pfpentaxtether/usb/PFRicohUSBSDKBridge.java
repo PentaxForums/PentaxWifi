@@ -254,10 +254,6 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         return connected;
     }
     
-    // TODO - delete
-    private String lastCommand;
-    // TODO - delete
-
     public USBMessage sendCommand(String c)
     {
         if (!conn.isAlive())
@@ -268,9 +264,6 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         
         this.q.add(c);
         
-        //System.out.println("Add " + c + " (" + this.q.size() + ")");
-        //System.out.println("Top: " + this.q.peek());
-
         int waited = 0;
         
         while(!this.q.peek().equals(c))
@@ -291,51 +284,40 @@ public final class PFRicohUSBSDKBridge implements USBInterface
             }
             catch (InterruptedException ex)
             {
-                Logger.getLogger(PFRicohUSBSDKBridge.class.getName()).log(Level.SEVERE, null, ex);
+                System.err.println("    USB Operation " + c.replace("\n", " ") + " interrupted.");
             }
         }
-        
-        // TODO - delete
-        if (!c.equals(lastCommand))
-        {
-            System.out.println("    DEBUG: Processing " + c.replace("\n", " "));
-        }
-        
-        lastCommand = c;
-        // TODO - delete
-        
+                
         if (!"".equals(c))
         {
             p.write(c);
             p.write("\n");
             p.flush();
         }
-        
-        // TODO - add timeout to this call
-        // USBMessage nm = new USBMessage(readUntilChar(in, USBMessage.getMessageDelim()));
+
+        // USBMessage nm = new USBMessage(readUntilChar(in, USBMessage.getMessageDelim()));        
+        // Added itmeout to call
 
         USBMessage nm = new USBMessage("TimeoutError", c);
-        
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Future<USBMessage> future = executor.submit(() -> new USBMessage(readUntilChar(in, USBMessage.getMessageDelim())));
               
         try
         {
-            nm = future.get(INTERFACE_TIMEOUT, TimeUnit.MILLISECONDS); //timeout is in 2 seconds
+            nm = future.get(INTERFACE_TIMEOUT, TimeUnit.MILLISECONDS);
         }
         catch (TimeoutException e)
         {
-            System.err.println("Operation timed out.");
+            System.err.println("    USB Operation " + c.replace("\n", " ") + " timed out.");
         }
         catch (InterruptedException | ExecutionException ex)
         {
-            Logger.getLogger(PFRicohUSBSDKBridge.class.getName()).log(Level.SEVERE, null, ex);
+            System.err.println("    USB Operation " + c.replace("\n", " ") + " interrupted.");
         }
         
         executor.shutdownNow();
-        
-        //System.out.println("----< Finished " + c);
-        
+        // End timeout code
+                
         if (!nm.getType().equals("Status"))
         {
             System.out.println(nm.toString());
