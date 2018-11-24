@@ -74,7 +74,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     //private boolean processing;
     
     // Internal state    
-    private Preferences prefs;
+    private final Preferences prefs;
     private String saveFilePath;
     private Boolean doTransferFiles;
     private Boolean doTransferRawFiles;
@@ -84,7 +84,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private ScheduledExecutorService pool;
     private LiveViewGui lv;
     private Boolean initializing;
-    private GuiEventListener gl;
+    private final GuiEventListener gl;
     
     private Boolean bypassReconnect;
     
@@ -141,8 +141,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                     javax.swing.UIManager.setLookAndFeel(info.getClassName());
                     break;
                 }
-            }       
-            
+            }         
         }
         catch (Exception ex)
         {
@@ -304,7 +303,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         
         // Camera status checker
         (Executors.newSingleThreadScheduledExecutor()).scheduleAtFixedRate(() -> {
-
+                        
             int cameraStatus = m.getCameraStatus();
             
             switch (cameraStatus)
@@ -323,6 +322,9 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                     setTitle(SW_NAME + " " + "(Status Unknown)");
                     break;
             }
+            
+            updateBattery();
+
         }, 0, STATUS_REFRESH, TimeUnit.MILLISECONDS);
         
         setVisible(true);
@@ -520,11 +522,13 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         
         int numImages = Math.max(this.m.getDownloadManager().getNumEnqueued(false), this.m.getDownloadManager().getNumProcessing(false));
                 
+        repaintProgressBar();
+        
         if (this.m.getQueueSize() > 0 || numImages > 0)
         {
             this.captureQueueTextLabel.setText(CAPTURE_QUEUE_LABEL + String.format(" (%s capture%s queued, %s file%s to download)", 
-                    this.m.getQueueRemaining(),
-                    this.m.getQueueRemaining() != 1 ? "s" : "",
+                    this.m.getQueueSize(),
+                    this.m.getQueueSize() != 1 ? "s" : "",
                     numImages,
                     numImages != 1 ? "s" : ""
             ));    
@@ -542,14 +546,14 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
      */
     @Override
     synchronized public void imageCaptureComplete(boolean captureOk, int remaining)
-    {
+    {        
         int index = queueProgressBar.getMaximum() - remaining;
         
         if (!captureOk)
         {
             if (this.doAutoReconnect)
             {
-                // This flag may have been set to prefent a force reconnect in case of queue abort
+                // This flag may have been set to prevent a force reconnect in case of queue abort
                 if (!bypassReconnect)
                 {
                     System.out.println(String.format("Shooting interrupted on frame %d.  Auto reconnecting and restarting.", index));
@@ -576,33 +580,37 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 );   
             }
         }
-        else if (this.m.isQueueProcessing())
-        {
-            this.queueProgressBar.setValue(index);
-            
-            // Highlight next row
-            if (index < this.queueTable.getRowCount())
-            {
-                this.queueTable.setRowSelectionInterval(index, index);
-            }
-            else
-            {
-                this.queueTable.clearSelection();
-            }
-        }
-        else
+        else if (!this.m.isQueueProcessing())
         {
             this.restartDownloads();
         }
         
-        if (captureOk || !doAutoReconnect)
+        refreshTransmitting();
+        
+        if (captureOk || !doAutoReconnect || remaining == 0)
         {     
             endProcessing();
-            updateBattery();
+            //updateBattery();
+        }
+    }
+    
+    /**
+     * Repaints the queue progress bar based on the model queue size
+     */
+    private void repaintProgressBar()
+    {
+        int index = queueProgressBar.getMaximum() - m.getQueueSize();
+            
+        this.queueProgressBar.setValue(index);
+
+        // Highlight next row
+        if (index < this.queueTable.getRowCount())
+        {
+            this.queueTable.setRowSelectionInterval(index, index);
         }
         else
         {
-            refreshTransmitting();
+            this.queueTable.clearSelection();
         }
     }
     
@@ -626,7 +634,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         }
         
         // Was above
-        this.refreshTransmitting();
+        refreshTransmitting();
     }
     
     /**
@@ -1778,6 +1786,9 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     
     private void processQueueButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_processQueueButtonActionPerformed
 
+        
+        bypassReconnect = false;
+        
         // Enqueue items
         CameraSettingTableModel t = (CameraSettingTableModel) this.queueTable.getModel();
                   
@@ -2502,7 +2513,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
 
     synchronized private void interruptQueue(boolean emptyQueue)
     {        
-        if (this.m.isQueueProcessing())
+        if (this.m.getQueueSize() > 0)
         {
             bypassReconnect = true;
             

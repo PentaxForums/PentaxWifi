@@ -67,6 +67,7 @@ public class CameraConnectionModel
     private final Deque<FuturePhoto> imageQueue;
     private final Map<String, Boolean> captureState;
     private final List<CameraImage> capturedImages;
+    private Capture lastCapture;
 
     private boolean queueLocked;
     private final ImageDownloadManager dm;
@@ -83,7 +84,7 @@ public class CameraConnectionModel
     public static final int WAIT_INTERVAL = 250;
     
     // Base timeout for an image capture (ms)
-    public static final int MIN_TIMEOUT = 20000;
+    public static final int MIN_TIMEOUT = 10000;
     
     // Keepalive interval (ms)
     public static final int KEEPALIVE = 45000;
@@ -114,7 +115,7 @@ public class CameraConnectionModel
         this.cl = new CameraEventListener()
         {
             @Override
-             public void captureComplete(CameraDevice sender, Capture capture)
+            public void captureComplete(CameraDevice sender, Capture capture)
             {     
                 new Thread(() ->
                 {
@@ -274,7 +275,7 @@ public class CameraConnectionModel
             if (p != null)
             {
                 // TODO The photo would have already been shot, so may actually want to skip this...
-                this.imageQueue.addFirst(p);
+                // this.imageQueue.addFirst(p);
                 p = null;
             }
             
@@ -340,6 +341,7 @@ public class CameraConnectionModel
             {                
                 Capture c = this.captureImageWithSettings(next.focus, next.settings);
                 captureState.put(c.getId(), false);
+                lastCapture = c;
                 
                 int waited = 0;
                 
@@ -350,7 +352,31 @@ public class CameraConnectionModel
                     {   
                         if (waited > timeout + parseShutterSpeedForDelay(next.settings))
                         {
-                            throw new InterruptedException("Timeout in image queue.");
+                            // No callback fired.  Let's ask the camera for the capture status...
+                            Capture status = getCam().getStatus().getCurrentCapture();
+                            
+                            // Last capture is complete or a different ID that we're expecting
+                            // This means that the capture was successful but never reported via SDK event
+                            // We need to fire the event manually
+                            if (lastCapture != null && status != null 
+                                && (!status.getId().equals(lastCapture.getId()) || lastCapture.getState() == CaptureState.COMPLETE)
+                            )
+                            {
+                                captureState.put(c.getId(), true);
+                                
+                                for (CameraEventListener e : getCam().getEventListeners())
+                                {
+                                    (new Thread (() -> {
+                                      e.captureComplete(cam, lastCapture);  
+                                    })).start();
+                                }
+                                
+                                break;
+                            }
+                            else
+                            {
+                                throw new InterruptedException("Timeout in image queue.");
+                            }
                         }
                         
                         Thread.sleep(WAIT_INTERVAL);

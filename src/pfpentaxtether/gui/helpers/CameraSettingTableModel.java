@@ -7,11 +7,8 @@ package pfpentaxtether.gui.helpers;
 
 import com.ricoh.camera.sdk.wireless.api.setting.capture.CaptureSetting;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.util.List;
 import java.util.Scanner;
 import javax.swing.table.DefaultTableModel;
@@ -65,13 +62,16 @@ public class CameraSettingTableModel extends DefaultTableModel implements java.i
         {
            i.printStackTrace();
         }
+        catch (NullPointerException i)
+        {
+           System.err.println("Did not save unitialized UI state");
+        }
 
         return false;
     }
     
     /**
      * Reads the data saved in a text file into the existing model
-     * @param existing
      * @param filePath
      * @param avs
      * @param tvs

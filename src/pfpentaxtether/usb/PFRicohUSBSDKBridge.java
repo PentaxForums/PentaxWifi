@@ -69,7 +69,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     private ServerSocket sock;
     private ExecutorService exec;
     
-    private PriorityQueue<String> q;
+    private final PriorityQueue<String> q;
     
     // OS detection
     public static final String OS = System.getProperty("os.name").toLowerCase();
@@ -248,6 +248,10 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         return connected;
     }
     
+    // TODO - delete
+    private String lastCommand;
+    // TODO - delete
+
     public USBMessage sendCommand(String c)
     {
         if (!conn.isAlive())
@@ -285,7 +289,14 @@ public final class PFRicohUSBSDKBridge implements USBInterface
             }
         }
         
-        //System.out.println("----> Processing " + c);
+        // TODO - delete
+        if (!c.equals(lastCommand))
+        {
+            System.out.println("    DEBUG: Processing " + c.replace("\n", " "));
+        }
+        
+        lastCommand = c;
+        // TODO - delete
         
         if (!"".equals(c))
         {
@@ -327,7 +338,8 @@ public final class PFRicohUSBSDKBridge implements USBInterface
                 @Override
                 public Capture getCurrentCapture()
                 {
-                    return new Capture() {
+                    return new Capture()
+                    {
                         @Override
                         public String getId()
                         {
@@ -340,8 +352,8 @@ public final class PFRicohUSBSDKBridge implements USBInterface
                         }
 
                         @Override
-                        public CaptureState getState() {
-                            
+                        public CaptureState getState()
+                        {
                             if (nm.getKey("Status").equals("Complete"))
                             {
                                 return CaptureState.COMPLETE;
@@ -449,7 +461,9 @@ public final class PFRicohUSBSDKBridge implements USBInterface
             sock = serverSocket;
         
             USBMessage resp = this.sendCommand(START_EVENTS + "\n" + serverSocket.getLocalPort());
-                        
+        
+            System.out.println("Communicating with camera on port " + serverSocket.getLocalPort());
+            
             if (!resp.hasError())
             {
                 if (exec != null)
@@ -470,8 +484,10 @@ public final class PFRicohUSBSDKBridge implements USBInterface
                             while (true)
                             {      
                                 USBMessage nm = new USBMessage(readUntilChar(inputStream, USBMessage.getMessageDelim()));
+                                
+                                System.out.println("Got camera event " + nm.getType());
 
-                                // System.out.println("EVENT " + serverSocket.getLocalPort() + " --->" + nm);
+                                //System.out.println("    EVENT on port " + serverSocket.getLocalPort() + " ---> " + nm);
 
                                 String eventName = nm.getKey("Event");
 
@@ -515,37 +531,28 @@ public final class PFRicohUSBSDKBridge implements USBInterface
                                                         {    
                                                             String format = nm.getKey("Format");
 
-                                                            if ("DNG".equals(format))
-                                                            {
-                                                                return ImageFormat.DNG;
-                                                            }
-                                                            else if ("JPEG".equals(format))
-                                                            {
-                                                                return ImageFormat.JPEG;
-                                                            }
-                                                            else if ("AVI".equals(format))
-                                                            {
-                                                                return ImageFormat.AVI;
-                                                            }
-                                                            else if ("MP4".equals(format))
-                                                            {
-                                                                return ImageFormat.MP4;
-                                                            }
-                                                            else if ("PEF".equals(format))
-                                                            {
-                                                                return ImageFormat.PEF;
-                                                            }
-                                                            else if ("DPOF".equals(format))
-                                                            {
-                                                                return ImageFormat.DPOF;
-                                                            }
-                                                            else if ("TIFF".equals(format))
-                                                            {
-                                                                return ImageFormat.TIFF;
-                                                            }
-                                                            else
+                                                            if (null == format)
                                                             {
                                                                 return ImageFormat.UNKNOWN;
+                                                            }
+                                                            else switch (format)
+                                                            {
+                                                                case "DNG":
+                                                                    return ImageFormat.DNG;
+                                                                case "JPEG":
+                                                                    return ImageFormat.JPEG;
+                                                                case "AVI":
+                                                                    return ImageFormat.AVI;
+                                                                case "MP4":
+                                                                    return ImageFormat.MP4;
+                                                                case "PEF":
+                                                                    return ImageFormat.PEF;
+                                                                case "DPOF":
+                                                                    return ImageFormat.DPOF;
+                                                                case "TIFF":
+                                                                    return ImageFormat.TIFF;
+                                                                default:
+                                                                    return ImageFormat.UNKNOWN;
                                                             }                                        
                                                         }
 
@@ -708,18 +715,20 @@ public final class PFRicohUSBSDKBridge implements USBInterface
             {
                 System.err.println("Null value passed to getCaptureSettings");
             }
-            
-            CaptureSetting newSetting = (CaptureSetting) USBCameraSetting.getUSBSetting(nm.getKey("current" + s.getName()), nm.getKey("available" + s.getName()), s.getClass());
-            
-            if (newSetting != null)
-            {
-                list.set(i, newSetting);
-            }
             else
-            {
-                System.err.println("Failed to get " + s.getName() + " value from camera");
-                 
-                return false;
+            {     
+                CaptureSetting newSetting = (CaptureSetting) USBCameraSetting.getUSBSetting(nm.getKey("current" + s.getName()), nm.getKey("available" + s.getName()), s.getClass());
+
+                if (newSetting != null)
+                {
+                    list.set(i, newSetting);
+                }
+                else
+                {
+                    System.err.println("Failed to get " + s.getName() + " value from camera");
+
+                    return false;
+                }
             }
         }
         
