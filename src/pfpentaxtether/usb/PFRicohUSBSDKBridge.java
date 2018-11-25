@@ -296,7 +296,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         }
 
         // USBMessage nm = new USBMessage(readUntilChar(in, USBMessage.getMessageDelim()));        
-        // Added itmeout to call
+        // Added timeout to call
 
         USBMessage nm = new USBMessage("TimeoutError", c);
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -1127,8 +1127,8 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     }
 
     @Override
-    public boolean startLiveView(int port) {
-        
+    public boolean startLiveView(int port)  
+    {
         USBMessage nm = this.sendCommand(START_LV + "\n" + port);
         
         if (nm.hasError())
@@ -1141,7 +1141,8 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     }
 
     @Override
-    public boolean stopLiveView() {
+    public boolean stopLiveView()
+    {
         USBMessage nm = this.sendCommand(STOP_LV);
         
         if (nm.hasError())

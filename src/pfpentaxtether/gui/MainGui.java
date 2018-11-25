@@ -105,7 +105,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     public static final int STATUS_REFRESH = 1500;
     
     // Version number
-    public static final String VERSION_NUMBER = "1.0.0 Beta 16";
+    public static final String VERSION_NUMBER = "1.0.0 Beta 17";
     public static final String SW_NAME = "PentaxForums.com Wi-Fi & USB Tether";
     
     // UI strings
@@ -984,6 +984,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         openMenuItem = new javax.swing.JMenuItem();
         saveMenuItem = new javax.swing.JMenuItem();
         restartMenuItem = new javax.swing.JMenuItem();
+        jSeparator2 = new javax.swing.JPopupMenu.Separator();
         exitMenuItem = new javax.swing.JMenuItem();
         editMenu = new javax.swing.JMenu();
         pauseQueueMenu = new javax.swing.JMenuItem();
@@ -1613,7 +1614,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         });
         fileMenu.add(startLiveViewMenu);
 
-        openMenuItem.setText("Open Capture Queue");
+        openMenuItem.setText("Load Capture Queue");
         openMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 openMenuItemActionPerformed(evt);
@@ -1636,6 +1637,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             }
         });
         fileMenu.add(restartMenuItem);
+        fileMenu.add(jSeparator2);
 
         exitMenuItem.setText("Exit");
         exitMenuItem.addActionListener(new java.awt.event.ActionListener() {
@@ -2610,6 +2612,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private javax.swing.JPanel jPanel6;
     private javax.swing.JScrollPane jScrollPane2;
     private javax.swing.JPopupMenu.Separator jSeparator1;
+    private javax.swing.JPopupMenu.Separator jSeparator2;
     private javax.swing.JLabel loaderLabelPhoto;
     private javax.swing.JLabel loaderLabelTransfer;
     private javax.swing.JMenuBar mainMenuBar;
