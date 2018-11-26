@@ -101,7 +101,7 @@
             </MenuItem>
             <MenuItem class="javax.swing.JMenuItem" name="cancelPendingTransfers">
               <Properties>
-                <Property name="text" type="java.lang.String" value="Cancel Pending Transfers"/>
+                <Property name="text" type="java.lang.String" value="Abort Pending Transfers"/>
               </Properties>
               <Events>
                 <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="cancelPendingTransfersActionPerformed"/>

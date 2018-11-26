@@ -129,7 +129,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         
     private static final int WAIT_INTERVAL = 10;
     
-    private static final int INTERFACE_TIMEOUT = 30000;
+    private static final int INTERFACE_TIMEOUT = 60000;
         
       
     public PFRicohUSBSDKBridge()
@@ -309,6 +309,12 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         catch (TimeoutException e)
         {
             System.err.println("    USB Operation " + c.replace("\n", " ") + " timed out.");
+         
+            // If a status check times out, the connection must have failed
+            if (c.equals(GET_STATUS))
+            {
+                disconnect();
+            }
         }
         catch (InterruptedException | ExecutionException ex)
         {
@@ -443,7 +449,6 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         return out;
     }
     
-    @Override 
     public int getNumEvents()
     {
         USBMessage nm = this.sendCommand(GET_NUM_EVENTS);

@@ -30,7 +30,7 @@ public class USBMessage
     
     /**
      * Generates a message reflecting a timeout condition
-     * @param error
+     * @param errorType
      * @param s 
      */
     public USBMessage(String errorType, String s)

@@ -1684,7 +1684,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         });
         editMenu.add(resumeDownloadsMenu);
 
-        cancelPendingTransfers.setText("Cancel Pending Transfers");
+        cancelPendingTransfers.setText("Abort Pending Transfers");
         cancelPendingTransfers.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 cancelPendingTransfersActionPerformed(evt);

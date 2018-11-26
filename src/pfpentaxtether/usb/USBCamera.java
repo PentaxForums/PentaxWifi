@@ -53,14 +53,14 @@ import pfpentaxtether.CameraException;
  */
 public final class USBCamera implements CameraDevice
 {
-    private USBInterface iface;
-    private String fw;
-    private String model;
-    private String serial;
-    private String manu;
-    private int index;
+    private final USBInterface iface;
+    private final String fw;
+    private final String model;
+    private final String serial;
+    private final String manu;
+    private final int index;
     private boolean connected;
-    private List<CameraEventListener> listeners;
+    private final List<CameraEventListener> listeners;
     private ScheduledExecutorService exec;
     private static final int SOCKET_BUFFER_SIZE = 50000;
     private ServerSocket sock;
@@ -249,7 +249,8 @@ public final class USBCamera implements CameraDevice
                 liveViewExec = Executors.newSingleThreadExecutor();
                 liveViewExec.submit(
                 
-                    new Thread(() -> {
+                    new Thread(() ->
+                    {
                         try 
                         {   
                             Socket socket = serverSocket.accept();
@@ -269,7 +270,6 @@ public final class USBCamera implements CameraDevice
 
                                     final byte[] imageAr2 = Arrays.copyOfRange(imageAr, 0, size);
 
-
                                     if (imageAr[size - 1] == -39)
                                     {                        
                                         new Thread(() -> {
@@ -280,11 +280,7 @@ public final class USBCamera implements CameraDevice
                                         }).start();
                                     }
                                 }
-                                catch(java.lang.ArrayIndexOutOfBoundsException e)
-                                {
-
-                                }
-                                catch(java.lang.IllegalArgumentException e)
+                                catch(java.lang.ArrayIndexOutOfBoundsException | java.lang.IllegalArgumentException e)
                                 {
 
                                 }

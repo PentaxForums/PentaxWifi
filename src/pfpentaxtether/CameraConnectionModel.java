@@ -70,6 +70,7 @@ public class CameraConnectionModel
     private Capture lastCapture;
 
     private boolean queueLocked;
+    private boolean queuePreloadedSettings;
     private final ImageDownloadManager dm;
     private ScheduledExecutorService capturePool;
     private final CameraEventListener cl;
@@ -84,7 +85,7 @@ public class CameraConnectionModel
     public static final int WAIT_INTERVAL = 250;
     
     // Base timeout for an image capture (ms)
-    public static final int MIN_TIMEOUT = 10000;
+    public static final int MIN_TIMEOUT = 15000;
     
     // Keepalive interval (ms)
     public static final int KEEPALIVE = 45000;
@@ -339,7 +340,37 @@ public class CameraConnectionModel
             
             try
             {                
-                Capture c = this.captureImageWithSettings(next.focus, next.settings);
+                Capture c;
+                
+                if (!queuePreloadedSettings)
+                {
+                    c = this.captureImageWithSettings(next.focus, next.settings);
+                }
+                else
+                {
+                    c = this.captureStillImage(next.focus);
+                    queuePreloadedSettings = false;
+                }
+                
+                // Attempt to preload next settings to improve queue timing accuracy
+                new Thread(() ->
+                {    
+                    FuturePhoto next2 = imageQueue.peek();
+                    
+                    if (next2 != null)
+                    {
+                        try
+                        {
+                            this.setCaptureSettings(next2.settings);
+                            this.queuePreloadedSettings = true;
+                        } 
+                        catch (CameraException ex)
+                        {
+                            // Do nothing
+                        }       
+                    }
+                }).start();
+                
                 captureState.put(c.getId(), false);
                 lastCapture = c;
                 
@@ -460,6 +491,7 @@ public class CameraConnectionModel
         if (!this.queueLocked)
         {     
             this.queueLocked = true;
+            this.queuePreloadedSettings = false;
             this.capturePool = Executors.newScheduledThreadPool(1);
             
             // Determine an appropriate timeout
