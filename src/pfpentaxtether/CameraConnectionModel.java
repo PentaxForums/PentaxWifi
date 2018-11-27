@@ -688,6 +688,7 @@ public class CameraConnectionModel
     
     /**
      * Attempts to establish a connection to the camera
+     * @param el
      * @throws pfpentaxtether.CameraException
      */
     synchronized public final void connect(CameraEventListener el) throws CameraException
@@ -716,12 +717,12 @@ public class CameraConnectionModel
                 disconnect();
                 
                 // Retry once
-                try
+                /*try
                 {
                     Thread.sleep(STARTUP_RETRY);
                     connect(el);
                 }
-                catch (InterruptedException ex) {}
+                catch (InterruptedException ex) {}*/
                 
                 if (!isConnected())
                 {
