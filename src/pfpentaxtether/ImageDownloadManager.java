@@ -78,7 +78,7 @@ public class ImageDownloadManager
         {
             new Thread(() -> {
                 l.imageDownloaded(null, null, false);
-            }).start();
+            },  "ImageDownloadManager imageDownloaded").start();
         }
     }
     
@@ -387,7 +387,7 @@ public class ImageDownloadManager
                         
                         new Thread(() -> {
                             l.imageDownloaded(img, fil, isThumb);    
-                        }).start();
+                        }, "ImageDownloadManager imageDownloaded").start();
                     }
                 }
                 catch (IOException e)
@@ -400,7 +400,7 @@ public class ImageDownloadManager
                         
                         new Thread(() -> {
                             l.imageDownloaded(img, null, isThumb);    
-                        }).start();    
+                        }, "ImageDownloadManager imageDownloaded").start();    
                     }
                     
                     error = true;
@@ -431,7 +431,7 @@ public class ImageDownloadManager
                         }
                     }
                 }
-            })
+            }, "ImageDownloadManager doDownloadImage")
         );
     }
     

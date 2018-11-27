@@ -277,7 +277,7 @@ public final class USBCamera implements CameraDevice
                                             { 
                                                 cel.liveViewFrameUpdated(this, imageAr2);
                                             });
-                                        }).start();
+                                        }, "USBCamera liveViewFrameUpdated").start();
                                     }
                                 }
                                 catch(java.lang.ArrayIndexOutOfBoundsException | java.lang.IllegalArgumentException e)
@@ -297,7 +297,7 @@ public final class USBCamera implements CameraDevice
 
                             }
                         }                
-                    })
+                    }, "USBCamera startLiveView")
                 );
                 
                 return new Response(

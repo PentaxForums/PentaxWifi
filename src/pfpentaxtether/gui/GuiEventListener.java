@@ -42,7 +42,7 @@ public class GuiEventListener extends CameraEventListener
             System.out.printf("Image Stored. Name: %s%n", image.getName());
 
             g.imageStored(image);
-        }).start();
+        }, "GuiEventListener imageStored").start();
     }
     
     public void imageDownloaded(CameraImage image, File f, boolean isThumbnail)
@@ -50,7 +50,7 @@ public class GuiEventListener extends CameraEventListener
         new Thread(() ->
         {
             g.imageDownloaded(image, f, isThumbnail);
-        }).start();
+        }, "GuiEventListener imageDownloaded").start();
     }
 
     @Override
@@ -64,7 +64,7 @@ public class GuiEventListener extends CameraEventListener
             }
 
             g.imageCaptureComplete(sender != null, m.getQueueSize()); 
-        }).start();          
+        }, "GuiEventListener captureComplete").start();          
     }
 
     @Override
@@ -75,7 +75,7 @@ public class GuiEventListener extends CameraEventListener
             System.out.println("Device Disconnected.");
 
             g.disconnect();
-        }).start();
+        }, "GuiEventListener deviceDisconnected").start();
     }
     
     // Display liveViewFrame in imageView
@@ -93,7 +93,7 @@ public class GuiEventListener extends CameraEventListener
             {
                 Logger.getLogger(GuiEventListener.class.getName()).log(Level.SEVERE, null, ex);
             } 
-        }).start();
+        }, "GuiEventListener liveViewFrameUpdated").start();
     }
 }
 

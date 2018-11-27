@@ -105,7 +105,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     public static final int STATUS_REFRESH = 1500;
     
     // Version number
-    public static final String VERSION_NUMBER = "1.0.0 Beta 17";
+    public static final String VERSION_NUMBER = "1.0.0 Beta 18";
     public static final String SW_NAME = "PentaxForums.com Wi-Fi & USB Tether";
     
     // UI strings
@@ -254,48 +254,52 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 addQueueButtonActionPerformed(null); 
             }
         });
+        
+        JMenuItem menuItem5 = new JMenuItem("Use previous settings (faster capture)");
+        menuItem5.addActionListener((ActionEvent e) -> {
+            
+            isoMenu.setSelectedIndex(0);
+            evMenu.setSelectedIndex(0);
+            avMenu.setSelectedIndex(0);
+            tvMenu.setSelectedIndex(0);
+            
+            addQueueButtonActionPerformed(null); 
+        });
                 
         popupMenu1.add(menuItem1);
         popupMenu1.add(menuItem2);
         popupMenu1.add(menuItem4);
         popupMenu1.add(menuItem3);
+        popupMenu1.add(menuItem5);
         addQueueButton.setComponentPopupMenu(popupMenu1);
         
         // Enable right-click focus on capture
         final JPopupMenu popupMenu2 = new JPopupMenu();
         JMenuItem focusItem = new JMenuItem("Focus");
-        focusItem.addActionListener((ActionEvent e) -> {
-             
-            (new Thread()
+        focusItem.addActionListener((ActionEvent e) ->
+        {     
+            (new Thread(() -> 
             {  
-                @Override
-                public void run()
+                try
                 {
-                    try
-                    {
-                        m.focus();
-                    }
-                    catch (CameraException ex)
-                    {
-                        JOptionPane.showMessageDialog(null, "Failed to focus. Is camera in MF mode?");
-                    }
+                    m.focus();
                 }
-            }).start();        
+                catch (CameraException ex)
+                {
+                    JOptionPane.showMessageDialog(null, "Failed to focus. Is camera in MF mode?");
+                }
+            }, "MainGui focuser")).start();        
         });
         
         popupMenu2.add(focusItem);
         
         JMenuItem captureItem = new JMenuItem("Capture Without Settings");
-        captureItem.addActionListener((ActionEvent e) -> {
-             
-            (new Thread()
+        captureItem.addActionListener((ActionEvent e) ->
+        {     
+            (new Thread(() -> 
             {  
-                @Override
-                public void run()
-                {
-                    captureButtonActionPerformed(null);
-                }
-            }).start();        
+                captureButtonActionPerformed(null); 
+            }, "MainGui capture initializer")).start();        
         });
         
         popupMenu2.add(captureItem);
@@ -303,7 +307,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         captureButton.setComponentPopupMenu(popupMenu2);
         
         // Camera status checker
-        (Executors.newSingleThreadScheduledExecutor()).scheduleAtFixedRate(() -> {
+        (Executors.newSingleThreadScheduledExecutor()).scheduleAtFixedRate(new Thread(() -> {
                         
             int cameraStatus = m.getCameraStatus();
             
@@ -326,7 +330,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             
             updateBattery();
 
-        }, 0, STATUS_REFRESH, TimeUnit.MILLISECONDS);
+        }, "MainGui status checker"), 0, STATUS_REFRESH, TimeUnit.MILLISECONDS);
         
         setVisible(true);
     }
@@ -435,9 +439,9 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             }
             else
             {
-                new Thread(()-> {
+                new Thread(() -> {
                     this.m.getDownloadManager().downloadImage(saveFilePath, image, this);             
-                }).start();
+                }, "MainGui downloadImage").start();
             } 
         }
         
@@ -573,7 +577,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                         {
                             processQueueButtonActionPerformed(null);   
                         }
-                    }).start();
+                    }, "MainGui imageCaptureComplete reconnect").start();
                 }
                 
                 bypassReconnect = false;
@@ -655,38 +659,35 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             abortTransfer();
         }
                 
-        (new Thread()
+        (new Thread( () ->
         {  
-            @Override
-            public void run()
+            while (!m.isConnected())
             {
-                while (!m.isConnected())
-                {
-                    try
-                    {                        
-                        if (!isVisible())
-                        {
-                            doExit();
-                        }
-                                                
-                        m.connect(gl);
-                    } 
-                    catch (CameraException ex)
+                try
+                {                        
+                    if (!isVisible())
                     {
-                        System.out.println(ex.toString());
-                        
-                        try
-                        {
-                            Thread.sleep(1000);
-                        } catch (InterruptedException ex1) { }
+                        doExit();
                     }
-                }
 
-                // Get rid of the popup
-                pane.setValue(JOptionPane.CANCEL_OPTION);
-                getTopicDialog.dispose();
+                    m.connect(gl);
+                } 
+                catch (CameraException ex)
+                {
+                    System.out.println(ex.toString());
+
+                    try
+                    {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ex1) { }
+                }
             }
-        }).start();
+
+            // Get rid of the popup
+            pane.setValue(JOptionPane.CANCEL_OPTION);
+            getTopicDialog.dispose();
+            
+        }, "MainGui reconnect watcher")).start();
 
         // Show dialog
         getTopicDialog.setVisible(true);
@@ -1802,7 +1803,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     }
     
     private void processQueueButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_processQueueButtonActionPerformed
-
         
         bypassReconnect = false;
         
@@ -1824,7 +1824,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                             if (((ComboItem) t.getValueAt(r, c)).getValue() != null)
                             {
                                 settings.add( 
-                                        ((CaptureSetting) ((ComboItem) t.getValueAt(r, c)).getValue())
+                                    ((CaptureSetting) ((ComboItem) t.getValueAt(r, c)).getValue())
                                 );
                             }
                         }
@@ -1883,10 +1883,10 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             }
         }
         
-        if (av.getValue() != null || tv.getValue() != null || iso.getValue() != null || ev.getValue() != null)
-        {
+        //if (av.getValue() != null || tv.getValue() != null || iso.getValue() != null || ev.getValue() != null)
+        //{
             t.addRow(new Object[]{av, tv, iso, ev}); 
-        }
+        //}
     }//GEN-LAST:event_addQueueButtonActionPerformed
 
     /**
@@ -2086,20 +2086,17 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     {
         if (!this.initializing)
         {
-            (new Thread(){
-                @Override
-                public void run()
+            (new Thread(() -> 
+            {   
+                try
                 {
-                    try
-                    {
-                        m.setCaptureSettings(getSettings(source));
-                    }
-                    catch (CameraException ex)
-                    {
-                        System.out.println(ex.toString());
-                    }
+                    m.setCaptureSettings(getSettings(source));
                 }
-            }).start();    
+                catch (CameraException ex)
+                {
+                    System.out.println(ex.toString());
+                }
+            }, "MainGui sendSettingsToCamera")).start();    
         }
     }
     
@@ -2126,7 +2123,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         
         pool = Executors.newScheduledThreadPool(1);
         
-        Runnable r = () -> 
+        Runnable r = new Thread(() -> 
         {
             try
             {
@@ -2146,7 +2143,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 captureButton.setEnabled(true);
                 loaderLabelPhoto.setVisible(false);
             }
-        };
+        }, "MainGui image capture");
         
         if (getDelaySeconds() > 0)
         {
@@ -2277,31 +2274,25 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         }
         
         // Tell the camera we're disconnecting
-        (new Thread(){
-            @Override
-            public void run()
-            {
-                m.disconnect();
-            }
-        }).start();
+        (new Thread(() ->
+        {
+            m.disconnect();    
+        }, "MainGui disconnect")).start();
         
-        (new Thread(){
-            @Override
-            public void run()
+        (new Thread(() ->
+        {
+            // Delay exit slightly if the call blocked
+            if (m.isConnected())
             {
-                // Delay exit slightly if the call blocked
-                if (m.isConnected())
+                try
                 {
-                    try
-                    {
-                        Thread.sleep(2000);
-                    } catch (InterruptedException ex) { }
-                
-                }
-                
-                System.exit(0);
+                    Thread.sleep(2000);
+                } catch (InterruptedException ex) { }
             }
-        }).start();
+
+            System.exit(0);
+            
+        }, "MainGui exiter")).start();
     }
     
     private void formWindowClosing(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowClosing
@@ -2394,36 +2385,30 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     
     private void restartMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_restartMenuItemActionPerformed
         
-        (new Thread(){
-            @Override
-            public void run()
-            {
-                //abortTransfer();
-                m.disconnect();
-                autoReconnect(true); 
-            }
-        }).start();
+        (new Thread(() ->
+        {            
+            //abortTransfer();
+            m.disconnect();
+            autoReconnect(true);    
+        }, "MainGui restarter")).start();
     }//GEN-LAST:event_restartMenuItemActionPerformed
 
     private void refreshButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_refreshButtonActionPerformed
         
         final MainGui gui = this;
         
-        (new Thread(){
-            @Override
-            public void run()
+        (new Thread( () -> 
+        {
+            try
             {
-                try
-                {
-                    m.refreshCurrentSettings();
-                    initLabels();
-                }
-                catch (CameraException ex)
-                {
-                    JOptionPane.showMessageDialog(gui, ex.toString());
-                } 
+                m.refreshCurrentSettings();
+                initLabels();
             }
-        }).start();
+            catch (CameraException ex)
+            {
+                JOptionPane.showMessageDialog(gui, ex.toString());
+            } 
+        }, "MainGui refresher")).start();
     }//GEN-LAST:event_refreshButtonActionPerformed
 
     private void autoReconnectActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_autoReconnectActionPerformed
@@ -2460,7 +2445,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 loaderLabelPhoto.setVisible(false);
                 m.emptyQueue();
             }        
-        }).start();
+        }, "MainGui aborter").start();
     }//GEN-LAST:event_abortIntervalMenuItemActionPerformed
 
     private void startLiveViewMenuActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_startLiveViewMenuActionPerformed
@@ -2487,7 +2472,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 //Logger.getLogger(MainGui.class.getName()).log(Level.SEVERE, null, ex);
             }
         
-        }).start();
+        }, "MainGui start live view").start();
     }//GEN-LAST:event_startLiveViewMenuActionPerformed
 
     private void dropDownStateChanged(java.awt.event.ItemEvent evt) {//GEN-FIRST:event_dropDownStateChanged
@@ -2552,7 +2537,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private void pauseQueueMenuActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_pauseQueueMenuActionPerformed
         new Thread(() -> {
             interruptQueue(false);
-        }).start(); 
+        }, "MainGui queue pauser").start(); 
     }//GEN-LAST:event_pauseQueueMenuActionPerformed
 
     private void downloadQueueImmediatelyActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_downloadQueueImmediatelyActionPerformed

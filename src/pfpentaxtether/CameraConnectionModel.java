@@ -40,15 +40,21 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import pfpentaxtether.usb.PFRicohUSBSDKBridge;
+import static pfpentaxtether.usb.PFRicohUSBSDKBridge.GET_STATUS;
+import static pfpentaxtether.usb.PFRicohUSBSDKBridge.readUntilChar;
 import pfpentaxtether.usb.USBCameraDeviceDetector;
+import pfpentaxtether.usb.USBMessage;
 
 /**
  * Model for camera connections through the Pentax Wi-Fi SDK
@@ -124,7 +130,7 @@ public class CameraConnectionModel
                     {
                         captureState.put(capture.getId(), true);
                     }
-                }).start();
+                }, "CameraConnectionModel captureComplete").start();
             }   
 
             @Override
@@ -133,7 +139,7 @@ public class CameraConnectionModel
                 new Thread(() ->
                 {
                     capturedImages.add(image);
-                }).start();
+                }, "CameraConnectionModel imageStored").start();
             }
 
             @Override
@@ -142,7 +148,7 @@ public class CameraConnectionModel
                 new Thread(() ->
                 {
                     disconnect();
-                }).start();
+                }, "CameraConnectionModel deviceDisconnected").start();
             }
         };
     }
@@ -284,7 +290,7 @@ public class CameraConnectionModel
             {
                 (new Thread (() -> {
                   e.captureComplete(null, null);  
-                })).start();
+                }, "CameraConnectionModel abortQueue")).start();
             }
         }
     }
@@ -369,58 +375,52 @@ public class CameraConnectionModel
                             // Do nothing
                         }       
                     }
-                }).start();
+                }, "CameraConnectionModel settings preloader").start();
                 
                 captureState.put(c.getId(), false);
                 lastCapture = c;
                 
-                int waited = 0;
-                
-                // Block thread until capture completes
-                while (captureState.get(c.getId()) == false)
+                // Avoid sleeping - equivalent to while loop with sleep
+                ExecutorService executor = Executors.newSingleThreadExecutor();
+                Future<?> future = executor.submit(() -> 
                 {
-                    try
-                    {   
-                        if (waited > timeout + parseShutterSpeedForDelay(next.settings))
-                        {
-                            // No callback fired.  Let's ask the camera for the capture status...
-                            Capture status = getCam().getStatus().getCurrentCapture();
-                            
-                            // Last capture is complete or a different ID that we're expecting
-                            // This means that the capture was successful but never reported via SDK event
-                            // We need to fire the event manually
-                            if (lastCapture != null && status != null 
-                                && (!status.getId().equals(lastCapture.getId()) || lastCapture.getState() == CaptureState.COMPLETE)
-                            )
-                            {
-                                captureState.put(c.getId(), true);
-                                
-                                for (CameraEventListener e : getCam().getEventListeners())
-                                {
-                                    (new Thread (() -> {
-                                      e.captureComplete(cam, lastCapture);  
-                                    })).start();
-                                }
-                                
-                                break;
-                            }
-                            else
-                            {
-                                throw new InterruptedException("Timeout in image queue.");
-                            }
-                        }
-                        
-                        Thread.sleep(WAIT_INTERVAL);
-                        waited += WAIT_INTERVAL;
-                    }
-                    catch (InterruptedException ex)
+                    while (captureState.get(c.getId()) == false) {}
+                }, "CameraConnectionModel await image response");
+              
+                try
+                {
+                    future.get(timeout + parseShutterSpeedForDelay(next.settings), TimeUnit.MILLISECONDS);
+                }
+                catch (TimeoutException | InterruptedException | ExecutionException e)
+                {   
+                    // No callback fired.  Let's ask the camera for the capture status...
+                    Capture status = getCam().getStatus().getCurrentCapture();
+
+                    // Last capture is complete or a different ID that we're expecting
+                    // This means that the capture was successful but never reported via SDK event
+                    // We need to fire the event manually
+                    if (lastCapture != null && status != null 
+                        && (!status.getId().equals(lastCapture.getId()) || lastCapture.getState() == CaptureState.COMPLETE)
+                    )
                     {
-                        // The abort function will put the image back into the queue
+                        captureState.put(c.getId(), true);
+
+                        for (CameraEventListener el : getCam().getEventListeners())
+                        {
+                            (new Thread (() -> {
+                              el.captureComplete(cam, lastCapture);  
+                            }, "CameraConnectionModel simulated capture complete event")).start();
+                        }
+                    }
+                    else
+                    {
                         abortQueue();
                         return;
-                    }                    
+                    }
                 }
-                
+
+                executor.shutdownNow();
+                 
                 // Capture was successful
                 p = null;
                 
@@ -500,9 +500,9 @@ public class CameraConnectionModel
             // Start one worker for each item
             for (int i = 0; i < imageQueue.size(); i ++)
             {
-                Runnable r = () -> {
+                Thread r = new Thread(() -> {
                     dequeuePhoto(timeout);
-                };
+                }, "Image queue processor");
                               
                 if (delay > 0)
                 {

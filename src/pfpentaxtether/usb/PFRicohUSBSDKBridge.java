@@ -77,6 +77,9 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     
     private final PriorityQueue<String> q;
     
+    private List<CameraEventListener> l;
+    private CameraDevice c;
+    
     // OS detection
     public static final String OS = System.getProperty("os.name").toLowerCase();
     public static final Boolean IS_MAC = OS.contains("mac");
@@ -136,7 +139,8 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     {
         connected = false;
                 
-        q = new PriorityQueue<>((String s1, String s2) -> {
+        q = new PriorityQueue<>((String s1, String s2) -> 
+        {
             if (s1.equals(s2))
             {
                 return 0;
@@ -313,7 +317,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
             // If a status check times out, the connection must have failed
             if (c.equals(GET_STATUS))
             {
-                disconnect();
+                this.disconnectCamera(0);
             }
         }
         catch (InterruptedException | ExecutionException ex)
@@ -473,6 +477,8 @@ public final class PFRicohUSBSDKBridge implements USBInterface
             
             final ServerSocket serverSocket = new ServerSocket(0);
             sock = serverSocket;
+            this.l = l;
+            this.c = c;
         
             USBMessage resp = this.sendCommand(START_EVENTS + "\n" + serverSocket.getLocalPort());
         
@@ -488,8 +494,8 @@ public final class PFRicohUSBSDKBridge implements USBInterface
                 exec = Executors.newSingleThreadExecutor();
                 exec.submit(
                 
-                    new Thread(() -> {
-
+                    new Thread(() ->
+                    {
                         try 
                         {   
                             Socket socket = serverSocket.accept();
@@ -515,7 +521,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
 
                                                 (new Thread (() -> {
                                                     cel.deviceDisconnected(c);
-                                                })).start();
+                                                }, "PFRicohUSBSDKBridge deviceDisconnected")).start();
                                                 break;
 
                                             // TODO - maybe fire a callback for this
@@ -688,7 +694,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
                                                             }                                    
                                                         }
                                                     });
-                                                })).start();
+                                                }, "PFRicohUSBSDKBridge imageAdded")).start();
                                                 break;
 
                                             case "captureComplete":
@@ -724,7 +730,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
                                                         }
                                                     }
                                                     );
-                                                })).start();
+                                                }, "PFRicohUSBSDKBridge captureComplete")).start();
                                                 break;
 
                                             default:
@@ -737,9 +743,9 @@ public final class PFRicohUSBSDKBridge implements USBInterface
                         }
                         catch (IOException e)
                         {
-                            disconnect();
+                            this.disconnectCamera(0);
                         }
-                    })
+                    }, "PFRicohUSBSDKBridge USB callback handler")
                 );
                 
                 return true;
@@ -1036,6 +1042,13 @@ public final class PFRicohUSBSDKBridge implements USBInterface
             }
             else
             {
+                // Finalize the disconnection
+                this.disconnect();
+                
+                this.l.forEach((cel) -> {
+                    (new Thread(() -> {cel.deviceDisconnected(c);}, "PFRicohUSBSDKBridge camera disconnect")).start();
+                });
+                
                 return true;
             }
         }
