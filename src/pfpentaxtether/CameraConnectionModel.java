@@ -81,14 +81,12 @@ public class CameraConnectionModel
     private ScheduledExecutorService capturePool;
     private final CameraEventListener cl;
     
+    // List of supported connection types
     public static enum CONNECTION_MODE {MODE_WIFI, MODE_USB};
     public final CONNECTION_MODE mode;
     
     // Track the most recently queued photo so we can roll back in case of failure
     private FuturePhoto p;
-    
-    // Time to re-check status in blocked capture thread (ms)
-    public static final int WAIT_INTERVAL = 250;
     
     // Base timeout for an image capture (ms)
     public static final int MIN_TIMEOUT = 15000;
