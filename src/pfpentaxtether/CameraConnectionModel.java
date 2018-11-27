@@ -416,8 +416,10 @@ public class CameraConnectionModel
                         return;
                     }
                 }
-
-                executor.shutdownNow();
+                finally
+                {
+                    executor.shutdownNow();
+                }
                  
                 // Capture was successful
                 p = null;
