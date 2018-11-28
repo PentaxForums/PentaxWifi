@@ -27,6 +27,7 @@ public class USBMessage
     
     private final Map<String, String> m;
     private final String rawData;
+    private final boolean malformed;
     
     /**
      * Generates a message reflecting a timeout condition
@@ -40,8 +41,9 @@ public class USBMessage
         m = new HashMap<>();
         msg = "";
         rawData = s;
+        malformed = false;
     }
-        
+            
     /**
      * Parse the message from input string
      * @param s 
@@ -64,6 +66,7 @@ public class USBMessage
             typ = matcher.group(1);
             msg = matcher.group(2);
             err = matcher.group(3);
+            malformed = false;
             
             String mapParse = matcher.group(4);
             
@@ -76,7 +79,11 @@ public class USBMessage
                     m.put(kv[0], kv[1]);
                 }
             }
-        }        
+        }    
+        else
+        {
+            malformed = true;
+        }
     }
     
     /**
@@ -178,6 +185,15 @@ public class USBMessage
     public String getRawData()
     {
         return rawData;
+    }
+    
+    /**
+     * Was this message actually parsed?
+     * @return 
+     */
+    public boolean isMalformed()
+    {
+        return malformed;
     }
     
     @Override

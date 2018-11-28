@@ -221,19 +221,25 @@ public final class PFRicohUSBSDKBridge implements USBInterface
                 if (!conn.isAlive())
                 {
                     System.out.println("Error: USB driver failed to start.");
-                    return false;
                 }
+                else
+                {
+                    // Connection sanity check
+                    USBMessage nm = this.sendCommand(GET_NUM_EVENTS);
 
-                connected = true;
+                    if (!nm.isMalformed())
+                    {
+                        connected = true;
+                    }
+                    else
+                    {
+                        System.err.println("Fatal Error: USB driver is not responding.  Your system may not have the correct runtime libraries installed.");
+                    }
+                }
             }
-            catch (URISyntaxException ex)
-            {
-                return false;
-            } 
-            catch (IOException ex)
+            catch (URISyntaxException | IOException ex)
             {            
-                System.out.println(ex.toString());
-                connected = false;   
+                System.err.println(ex.toString());
             }
         }
         
@@ -258,6 +264,11 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         return connected;
     }
     
+    /**
+     * Sends a command to the camera and returns the response
+     * @param c
+     * @return 
+     */
     public USBMessage sendCommand(String c)
     {
         if (!conn.isAlive())
@@ -328,6 +339,8 @@ public final class PFRicohUSBSDKBridge implements USBInterface
         executor.shutdownNow();
         // End timeout code
                 
+        
+        
         if (!nm.getType().equals("Status"))
         {
             System.out.println(nm.toString());
