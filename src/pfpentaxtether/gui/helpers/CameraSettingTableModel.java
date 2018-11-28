@@ -20,6 +20,8 @@ import pfpentaxtether.gui.MainGui;
  */
 public class CameraSettingTableModel extends DefaultTableModel implements java.io.Serializable
 {
+    public static final String FOCUS_ITEM_NAME = "Focus";
+    
     public CameraSettingTableModel (Object[][] o, String[] s)
     {
         super(o, s);
@@ -47,7 +49,8 @@ public class CameraSettingTableModel extends DefaultTableModel implements java.i
                         + m.getValueAt(row, 0).toString() + ","
                         + m.getValueAt(row, 1).toString() + ","
                         + m.getValueAt(row, 2).toString() + ","
-                        + m.getValueAt(row, 3).toString() + "\n";
+                        + m.getValueAt(row, 3).toString() + ","
+                        + m.getValueAt(row, 4).toString() + "\n";
                 }
 
                 FileOutputStream fileOut =
@@ -96,7 +99,7 @@ public class CameraSettingTableModel extends DefaultTableModel implements java.i
            {             
                String[] fragments = input.next().split(",");
                
-               if (fragments.length == 4)
+               if (fragments.length == 5)
                {
                    ComboItem av = MainGui.DEFAULT_COMBO_ITEM;
                    
@@ -142,7 +145,9 @@ public class CameraSettingTableModel extends DefaultTableModel implements java.i
                        }
                    }
                    
-                   this.addRow(new Object[]{av, tv, iso, ev});
+                   ComboItem focus = getFocusItem("Yes".equals(fragments[4]));
+                   
+                   this.addRow(new Object[]{av, tv, iso, ev, focus});
                }
            }
            
@@ -155,6 +160,11 @@ public class CameraSettingTableModel extends DefaultTableModel implements java.i
       
         return false;
     }    
+    
+    public static ComboItem getFocusItem(boolean focus)
+    {
+        return new ComboItem(focus ? "Yes" : "No", FOCUS_ITEM_NAME);
+    }
     
     /**
      * Cells not editable

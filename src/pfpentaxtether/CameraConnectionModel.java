@@ -398,7 +398,7 @@ public class CameraConnectionModel
                     // This means that the capture was successful but never reported via SDK event
                     // We need to fire the event manually
                     if (lastCapture != null && status != null 
-                        && (!status.getId().equals(lastCapture.getId()) || lastCapture.getState() == CaptureState.COMPLETE)
+                        && (!status.getId().equals(lastCapture.getId()) || status.getState().equals(CaptureState.COMPLETE))
                     )
                     {
                         captureState.put(c.getId(), true);

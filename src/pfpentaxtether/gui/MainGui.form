@@ -24,6 +24,14 @@
                 <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="startLiveViewMenuActionPerformed"/>
               </Events>
             </MenuItem>
+            <MenuItem class="javax.swing.JMenuItem" name="refreshMenu">
+              <Properties>
+                <Property name="text" type="java.lang.String" value="Get Settings from Camera"/>
+              </Properties>
+              <Events>
+                <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="refreshMenuActionPerformed"/>
+              </Events>
+            </MenuItem>
             <MenuItem class="javax.swing.JMenuItem" name="openMenuItem">
               <Properties>
                 <Property name="text" type="java.lang.String" value="Load Capture Queue"/>
@@ -637,7 +645,7 @@
                           <EmptySpace max="32767" attributes="0"/>
                           <Component id="loaderLabelPhoto" min="-2" max="-2" attributes="0"/>
                           <EmptySpace max="-2" attributes="0"/>
-                          <Component id="refreshButton" min="-2" max="-2" attributes="0"/>
+                          <Component id="focus" min="-2" max="-2" attributes="0"/>
                           <EmptySpace max="-2" attributes="0"/>
                           <Component id="captureButton" min="-2" max="-2" attributes="0"/>
                       </Group>
@@ -661,7 +669,7 @@
                       <Component id="addQueueButton" alignment="3" min="-2" max="-2" attributes="0"/>
                       <Component id="captureButton" alignment="3" min="-2" max="-2" attributes="0"/>
                       <Component id="loaderLabelPhoto" alignment="3" min="-2" max="-2" attributes="0"/>
-                      <Component id="refreshButton" alignment="3" min="-2" max="-2" attributes="0"/>
+                      <Component id="focus" alignment="3" min="-2" max="-2" attributes="0"/>
                   </Group>
                   <EmptySpace max="-2" attributes="0"/>
               </Group>
@@ -1046,13 +1054,12 @@
             <EventHandler event="mouseClicked" listener="java.awt.event.MouseListener" parameters="java.awt.event.MouseEvent" handler="loaderLabelPhotoMouseClicked"/>
           </Events>
         </Component>
-        <Component class="javax.swing.JButton" name="refreshButton">
+        <Component class="javax.swing.JCheckBox" name="focus">
           <Properties>
-            <Property name="text" type="java.lang.String" value="Get Settings from Camera"/>
-            <Property name="toolTipText" type="java.lang.String" value="Sync available settings after changing camera modes."/>
+            <Property name="text" type="java.lang.String" value="Focus"/>
           </Properties>
           <Events>
-            <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="refreshButtonActionPerformed"/>
+            <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="focusActionPerformed"/>
           </Events>
         </Component>
       </SubComponents>
@@ -1130,7 +1137,7 @@
                   </Border>
                 </Property>
                 <Property name="model" type="javax.swing.table.TableModel" editor="org.netbeans.modules.form.RADConnectionPropertyEditor">
-                  <Connection code="new pfpentaxtether.gui.helpers.CameraSettingTableModel(&#xa;    new Object [][] {&#xa;        {null, null, null, null}&#xa;    },&#xa;    new String [] {&#xa;        &quot;f/&quot;, &quot;Seconds&quot;, &quot;ISO&quot;, &quot;EV&quot;&#xa;    }&#xa;)" type="code"/>
+                  <Connection code="new pfpentaxtether.gui.helpers.CameraSettingTableModel(&#xa;    new Object [][] {&#xa;        {null, null, null, null}&#xa;    },&#xa;    new String [] {&#xa;        &quot;f/&quot;, &quot;Seconds&quot;, &quot;ISO&quot;, &quot;EV&quot;, &quot;Focus&quot;&#xa;    }&#xa;)" type="code"/>
                 </Property>
                 <Property name="columnModel" type="javax.swing.table.TableColumnModel" editor="org.netbeans.modules.form.editors2.TableColumnModelEditor">
                   <TableColumnModel selectionModel="0"/>

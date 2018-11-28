@@ -82,12 +82,14 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private Boolean doSyncCameraSettings;
     private Boolean doDownloadQueueImmediately;
     private Boolean doAutoReconnect;
+    private Boolean doFocus;
     private ScheduledExecutorService pool;
     private LiveViewGui lv;
     private Boolean initializing;
     private final GuiEventListener gl;
     
     private Boolean bypassReconnect;
+    private Boolean messageDisplayed;
     
     // Application icon
     public static final String ICON = "resources/appicon.png";
@@ -105,7 +107,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     public static final int STATUS_REFRESH = 1500;
     
     // Version number
-    public static final String VERSION_NUMBER = "1.0.0 Beta 18";
+    public static final String VERSION_NUMBER = "1.0.0 Beta 19";
     public static final String SW_NAME = "PentaxForums.com Wi-Fi & USB Tether";
     
     // UI strings
@@ -121,7 +123,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
      * @param mode
      */
     public MainGui(CONNECTION_MODE mode)
-    {   
+    {          
         // Set look and feel - prefer OS
         try
         {
@@ -153,6 +155,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         m = new CameraConnectionModel(mode);     
         initComponents();
         setVisible(false);
+        messageDisplayed = false;
         
         // Initialize state
         prefs = Preferences.userRoot().node(this.getClass().getName());
@@ -275,7 +278,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         
         // Enable right-click focus on capture
         final JPopupMenu popupMenu2 = new JPopupMenu();
-        JMenuItem focusItem = new JMenuItem("Focus");
+        JMenuItem focusItem = new JMenuItem("Focus Now");
         focusItem.addActionListener((ActionEvent e) ->
         {     
             (new Thread(() -> 
@@ -293,7 +296,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         
         popupMenu2.add(focusItem);
         
-        JMenuItem captureItem = new JMenuItem("Capture Without Settings");
+        JMenuItem captureItem = new JMenuItem("Quick Capture w/o Settings");
         captureItem.addActionListener((ActionEvent e) ->
         {     
             (new Thread(() -> 
@@ -353,12 +356,14 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private void loadPrefs()
     {
         doTransferThumbnails = prefs.getBoolean("doTransferThumbnails", true);
-        doSyncCameraSettings = prefs.getBoolean("doSyncCameraSettings", false);
+        doSyncCameraSettings = prefs.getBoolean("doSyncCameraSettings", true);
         doDownloadQueueImmediately = prefs.getBoolean("doDownloadQueueImmediately", false);
         doTransferFiles = prefs.getBoolean("doTransferFiles", false);
         doTransferRawFiles = prefs.getBoolean("doTransferRawFiles", false);
         saveFilePath = prefs.get("saveFilePath", DEFAULT_PATH);
         doAutoReconnect = prefs.getBoolean("doAutoReconnect", true);        
+        doFocus = prefs.getBoolean("doFocus", false);        
+
         this.timeSlider.setValue(prefs.getInt("sliderPosition", 0));
         
         Boolean min = prefs.getBoolean("minutes", false);
@@ -377,6 +382,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             saveFilePath = DEFAULT_PATH;
         }
         
+        this.focus.setSelected(doFocus);
         this.transferRawFiles.setSelected(doTransferRawFiles);
         this.transferFiles.setSelected(doTransferFiles);
         this.transferThumbnails.setSelected(doTransferThumbnails);
@@ -488,7 +494,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                     //{
                     //    this.thumbnailArea.setIcon(new ImageIcon(myPicture));
                     //}
-                                        
+                                       
                     // Delete the temporary thumbnail file
                     this.m.getDownloadManager().getDownloadedThumb(image).delete();                       
                 }
@@ -633,7 +639,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             // Update settings in dropdowns after queue is finished
             if (this.queueProgressBar.isVisible() == true && this.m.isQueueEmpty() && this.doSyncCameraSettings)
             {
-                refreshButtonActionPerformed(null);
+                refreshMenuActionPerformed(null);
             }
             
             this.processQueueButton.setEnabled(true);
@@ -970,7 +976,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         addQueueButton = new javax.swing.JButton();
         captureButton = new javax.swing.JButton();
         loaderLabelPhoto = new javax.swing.JLabel();
-        refreshButton = new javax.swing.JButton();
+        focus = new javax.swing.JCheckBox();
         delayTextLabel = new javax.swing.JLabel();
         exposureTextLabel = new javax.swing.JLabel();
         queuePanel = new javax.swing.JPanel();
@@ -982,6 +988,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         mainMenuBar = new javax.swing.JMenuBar();
         fileMenu = new javax.swing.JMenu();
         startLiveViewMenu = new javax.swing.JMenuItem();
+        refreshMenu = new javax.swing.JMenuItem();
         openMenuItem = new javax.swing.JMenuItem();
         saveMenuItem = new javax.swing.JMenuItem();
         restartMenuItem = new javax.swing.JMenuItem();
@@ -1493,11 +1500,10 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             }
         });
 
-        refreshButton.setText("Get Settings from Camera");
-        refreshButton.setToolTipText("Sync available settings after changing camera modes.");
-        refreshButton.addActionListener(new java.awt.event.ActionListener() {
+        focus.setText("Focus");
+        focus.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
-                refreshButtonActionPerformed(evt);
+                focusActionPerformed(evt);
             }
         });
 
@@ -1522,7 +1528,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                         .addComponent(loaderLabelPhoto)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(refreshButton)
+                        .addComponent(focus)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(captureButton)))
                 .addContainerGap())
@@ -1541,7 +1547,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                     .addComponent(addQueueButton)
                     .addComponent(captureButton)
                     .addComponent(loaderLabelPhoto)
-                    .addComponent(refreshButton))
+                    .addComponent(focus))
                 .addContainerGap())
         );
 
@@ -1559,7 +1565,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                 {null, null, null, null}
             },
             new String [] {
-                "f/", "Seconds", "ISO", "EV"
+                "f/", "Seconds", "ISO", "EV", "Focus"
             }
         ));
         queueTable.setFocusable(false);
@@ -1614,6 +1620,14 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             }
         });
         fileMenu.add(startLiveViewMenu);
+
+        refreshMenu.setText("Get Settings from Camera");
+        refreshMenu.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                refreshMenuActionPerformed(evt);
+            }
+        });
+        fileMenu.add(refreshMenu);
 
         openMenuItem.setText("Load Capture Queue");
         openMenuItem.addActionListener(new java.awt.event.ActionListener() {
@@ -1813,6 +1827,8 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         {
             if (m.isQueueEmpty())
             {
+                boolean fcus = false;
+                
                 for (int r = 0; r < t.getRowCount(); r++)
                 {
                     List<CaptureSetting> settings = new ArrayList<>();
@@ -1821,11 +1837,20 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                     {
                         try
                         {
-                            if (((ComboItem) t.getValueAt(r, c)).getValue() != null)
+                            ComboItem item = ((ComboItem) t.getValueAt(r, c));
+                            
+                            if (item.getValue() != null)
                             {
-                                settings.add( 
-                                    ((CaptureSetting) ((ComboItem) t.getValueAt(r, c)).getValue())
-                                );
+                                if (CameraSettingTableModel.FOCUS_ITEM_NAME.equals(item.getValue()))
+                                {
+                                    fcus = item.getKey().equals("Yes");
+                                }
+                                else
+                                {
+                                    settings.add( 
+                                       ((CaptureSetting) ((ComboItem) t.getValueAt(r, c)).getValue())
+                                   );    
+                                }
                             }
                         }
                         catch (Exception e)
@@ -1833,10 +1858,9 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                             JOptionPane.showMessageDialog(this, String.format("Error: invalid %s setting value %s.", t.getColumnName(c), t.getValueAt(r, c).toString()));
                             return;
                         }
-
                     }
 
-                    m.enqueuePhoto(new FuturePhoto(false, settings));    
+                    m.enqueuePhoto(new FuturePhoto(fcus, settings));    
                 }
                 
                 // Reset progress bar
@@ -1874,6 +1898,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         ComboItem tv = (ComboItem) this.tvMenu.getSelectedItem();
         ComboItem iso = (ComboItem) this.isoMenu.getSelectedItem();
         ComboItem ev = (ComboItem) this.evMenu.getSelectedItem();
+        ComboItem fcus = CameraSettingTableModel.getFocusItem(doFocus);
         
         if (av.getValue() != null && tv.getValue() != null && iso.getValue() != null && ev.getValue() != null)
         {
@@ -1885,7 +1910,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         
         //if (av.getValue() != null || tv.getValue() != null || iso.getValue() != null || ev.getValue() != null)
         //{
-            t.addRow(new Object[]{av, tv, iso, ev}); 
+            t.addRow(new Object[]{av, tv, iso, ev, fcus}); 
         //}
     }//GEN-LAST:event_addQueueButtonActionPerformed
 
@@ -1912,7 +1937,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     
     private void queueLockedMessage()
     {
-        JOptionPane.showMessageDialog(this, String.format("There are %d pending captures in the queue.\n\nProcess queue or abort via Edit menu (ensure Reset option is selected in the Options Menu).", this.m.getQueueSize()));
+        JOptionPane.showMessageDialog(this, String.format("There are %d pending captures in the queue.\n\nProcess queue or abort via Edit menu.", this.m.getQueueSize()));
     }
     
     /**
@@ -2105,8 +2130,10 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         final Component parent = this;
         
         // Delay image capture if requested
-        if (getDelaySeconds() > 0)
+        if (getDelaySeconds() > 0 && !messageDisplayed)
         {
+            messageDisplayed = true;
+            
             int result = JOptionPane.showConfirmDialog(this, 
                 String.format("Capture will automatically start after %d seconds.  Cancel via menu.  Proceed?", getDelaySeconds()),
                 "Self Timer", JOptionPane.YES_NO_OPTION
@@ -2123,6 +2150,8 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         
         pool = Executors.newScheduledThreadPool(1);
         
+        final boolean focusSetting = doFocus;
+        
         Runnable r = new Thread(() -> 
         {
             try
@@ -2132,11 +2161,11 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
                     m.setCaptureSettings(getSettings(null));
                 }
                 
-                m.captureStillImage(false);                
+                m.captureStillImage(focusSetting);                
             }
             catch (CameraException ex)
             {
-                JOptionPane.showMessageDialog(parent, ex.toString() + "\n\nIs the camera in single frame mode?");
+                JOptionPane.showMessageDialog(parent, ex.toString() + "\n\nIs the camera in single frame mode and set to auto focus?");
             }
             finally
             {
@@ -2359,8 +2388,9 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private void troubleshootingMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_troubleshootingMenuItemActionPerformed
         JOptionPane.showMessageDialog(this, 
                 "If the connection to the camera in unstable, please power cycle the camera and reconnect to it."
-                        + "\n\nRAW+ file transfer is known to be unreliable."
-                        + "\n\nThe Ricoh SDK does not work well when there are many files on the camera, so please use a formatted card if possible."
+                        + "\n\nRAW+ file transfer is known to be unreliable in Wi-Fi mode."
+                        + "\n\nThe Ricoh Wi-Fi SDK does not work well when there are many files on the camera, so please use a formatted card if possible."
+                        + "\n\nIn USB mode, focusing only works in live view."
                         + "\n\nFor help, visit PentaxForums.com.");
     }//GEN-LAST:event_troubleshootingMenuItemActionPerformed
 
@@ -2392,24 +2422,6 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
             autoReconnect(true);    
         }, "MainGui restarter")).start();
     }//GEN-LAST:event_restartMenuItemActionPerformed
-
-    private void refreshButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_refreshButtonActionPerformed
-        
-        final MainGui gui = this;
-        
-        (new Thread( () -> 
-        {
-            try
-            {
-                m.refreshCurrentSettings();
-                initLabels();
-            }
-            catch (CameraException ex)
-            {
-                JOptionPane.showMessageDialog(gui, ex.toString());
-            } 
-        }, "MainGui refresher")).start();
-    }//GEN-LAST:event_refreshButtonActionPerformed
 
     private void autoReconnectActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_autoReconnectActionPerformed
 
@@ -2551,6 +2563,35 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         loadPrefs();
     }//GEN-LAST:event_downloadQueueImmediatelyActionPerformed
 
+    private void refreshMenuActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_refreshMenuActionPerformed
+        final MainGui gui = this;
+        
+        (new Thread( () -> 
+        {
+            try
+            {
+                m.refreshCurrentSettings();
+                initLabels();
+            }
+            catch (CameraException ex)
+            {
+                JOptionPane.showMessageDialog(gui, ex.toString());
+            } 
+        }, "MainGui refresher")).start();
+    }//GEN-LAST:event_refreshMenuActionPerformed
+
+    private void focusActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_focusActionPerformed
+        prefs.putBoolean("doFocus", this.focus.isSelected());
+        this.focus.isSelected();
+        
+        if (this.focus.isSelected() && (this.lv == null || !this.lv.isVisible()))
+        {
+            JOptionPane.showMessageDialog(this, "The SDK currently only supports focusing while in live view. Start live view via the File menu for focusing to work.");
+        }
+        
+        loadPrefs();
+    }//GEN-LAST:event_focusActionPerformed
+
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JRadioButton Seconds;
     private javax.swing.JMenuItem abortIntervalMenuItem;
@@ -2585,6 +2626,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private javax.swing.JLabel exposureTextLabel;
     private javax.swing.JPanel fileManagementArea;
     private javax.swing.JMenu fileMenu;
+    private javax.swing.JCheckBox focus;
     private javax.swing.JMenu helpMenu;
     private javax.swing.JButton incAv;
     private javax.swing.JButton incEV;
@@ -2610,7 +2652,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
     private javax.swing.JPanel queuePanel;
     private javax.swing.JProgressBar queueProgressBar;
     private javax.swing.JTable queueTable;
-    private javax.swing.JButton refreshButton;
+    private javax.swing.JMenuItem refreshMenu;
     private javax.swing.JMenuItem restartMenuItem;
     private javax.swing.JMenuItem resumeDownloadsMenu;
     private javax.swing.JMenuItem saveMenuItem;

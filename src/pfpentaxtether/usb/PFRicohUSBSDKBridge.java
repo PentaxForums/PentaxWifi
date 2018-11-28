@@ -77,7 +77,6 @@ public final class PFRicohUSBSDKBridge implements USBInterface
     
     private final PriorityQueue<String> q;
     
-    private List<CameraEventListener> l;
     private CameraDevice c;
     
     // OS detection
@@ -220,7 +219,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
 
                 if (!conn.isAlive())
                 {
-                    System.out.println("Error: USB driver failed to start.");
+                    System.err.println("Error: USB driver failed to start.");
                 }
                 else
                 {
@@ -490,7 +489,6 @@ public final class PFRicohUSBSDKBridge implements USBInterface
             
             final ServerSocket serverSocket = new ServerSocket(0);
             sock = serverSocket;
-            this.l = l;
             this.c = c;
         
             USBMessage resp = this.sendCommand(START_EVENTS + "\n" + serverSocket.getLocalPort());
@@ -524,8 +522,8 @@ public final class PFRicohUSBSDKBridge implements USBInterface
 
                                 String eventName = nm.getKey("Event");
 
-                                l.forEach((CameraEventListener cel) ->
-                                {            
+                                for (CameraEventListener cel : c.getEventListeners())
+                                {           
                                     if (null != eventName)
                                     {
                                         switch (eventName)
@@ -750,7 +748,7 @@ public final class PFRicohUSBSDKBridge implements USBInterface
                                                 break;
                                         }
                                     }
-                                });
+                                }
                             }
 
                         }
@@ -1058,9 +1056,10 @@ public final class PFRicohUSBSDKBridge implements USBInterface
                 // Finalize the disconnection
                 this.disconnect();
                 
-                this.l.forEach((cel) -> {
-                    (new Thread(() -> {cel.deviceDisconnected(c);}, "PFRicohUSBSDKBridge camera disconnect")).start();
-                });
+                for (CameraEventListener cel : c.getEventListeners())
+                {
+                    (new Thread(() -> {cel.deviceDisconnected(c);}, "PFRicohUSBSDKBridge camera disconnect")).start();                    
+                }
                 
                 return true;
             }
