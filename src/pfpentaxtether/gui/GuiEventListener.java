@@ -60,7 +60,7 @@ public class GuiEventListener extends CameraEventListener
         {
             if (sender != null && capture != null)
             {
-                System.out.printf("Capture Complete. Caputure ID: %s%n", capture.getId());
+                System.out.printf("Capture Complete. Capture ID: %s%n", capture.getId());
             }
 
             g.imageCaptureComplete(sender != null, m.getQueueSize()); 
