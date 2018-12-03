@@ -196,7 +196,7 @@ public class MainGui extends javax.swing.JFrame implements CaptureEventListener
         });
         popupMenu.add(countItem);
         
-        JMenuItem duplicateItem = new JMenuItem("Dupliate Selected");
+        JMenuItem duplicateItem = new JMenuItem("Duplicate Selected");
         duplicateItem.addActionListener((ActionEvent e) -> {
             duplicateInTable();
         });
