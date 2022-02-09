@@ -20,4 +20,4 @@ Planned Features:
     
 Code contributions are welcome and encouraged!
 
-User support can be obtained on PentaxForums.com.  
+User support can be obtained on [PentaxForums.com](https://www.pentaxforums.com/forums/showthread.php?t=378428).  
